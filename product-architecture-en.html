@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XiaoXi Project (hermes-xiaoxi) · Product Architecture</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #0a0e1a; min-height: 100vh; color: #e2e8f0; padding: 2rem; }
+    .container { max-width: 1400px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .header h1 span { color: #22d3ee; }
+    .header p { color: #64748b; font-size: 0.9rem; }
+    .section { margin-bottom: 2.5rem; }
+    .section h2 { font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem; }
+    .diagram-box { background: rgba(15, 23, 42, 0.5); border: 1px solid #1e293b; border-radius: 1rem; padding: 1.5rem; overflow-x: auto; }
+
+    .versions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.2rem; margin-bottom: 2rem; }
+    .vcard { background: rgba(15, 23, 42, 0.6); border: 1px solid #1e293b; border-radius: 1rem; padding: 1.2rem; position: relative; overflow: hidden; }
+    .vcard::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+    .v1::before { background: #22d3ee; } .v2::before { background: #f472b6; } .v3::before { background: #a78bfa; } .v4::before { background: #fbbf24; }
+    .vcard h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.15rem; }
+    .vcard .tag { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.6rem; font-weight: 600; margin-bottom: 0.6rem; }
+    .v1 .tag { background: rgba(34,211,238,0.15); color: #22d3ee; }
+    .v2 .tag { background: rgba(244,114,182,0.15); color: #f472b6; }
+    .v3 .tag { background: rgba(167,139,250,0.15); color: #a78bfa; }
+    .v4 .tag { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .vcard .s { font-size: 0.68rem; color: #94a3b8; margin-bottom: 0.2rem; }
+    .vcard .s strong { color: #e2e8f0; }
+    .vcard .p { font-size: 1.2rem; font-weight: 700; margin: 0.4rem 0 0.1rem; }
+    .v1 .p { color: #22d3ee; } .v2 .p { color: #f472b6; } .v3 .p { color: #a78bfa; } .v4 .p { color: #fbbf24; }
+    .vcard .c { font-size: 0.65rem; color: #475569; }
+    .fr { display: flex; align-items: center; gap: 0.3rem; font-size: 0.65rem; color: #94a3b8; margin-bottom: 0.15rem; }
+    .fr .y { color: #34d399; } .fr .n { color: #475569; }
+    .feat { margin-top: 0.5rem; }
+
+    .tbl { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+    .tbl th, .tbl td { padding: 0.5rem 0.8rem; border-bottom: 1px solid #1e293b; text-align: left; }
+    .tbl th { color: #94a3b8; font-weight: 500; font-size: 0.68rem; text-transform: uppercase; }
+    .tbl td { color: #e2e8f0; }
+    .tbl .hl { color: #22d3ee; font-weight: 600; }
+    .footer { text-align: center; padding: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🖊️ <span>XiaoXi</span> · Product Architecture v3.0</h1>
+      <p>ESP32 Device + Agent Backend · Compile firmware once, never touch again · Change address to switch Agent · 2026</p>
+    </div>
+
+    <!-- Core Architecture Diagram -->
+    <div class="section">
+      <h2>🏗️ Core Architecture: ESP32 Device + Agent Backend</h2>
+      <div class="diagram-box">
+        <svg viewBox="0 0 1300 700">
+          <defs>
+            <marker id="a1" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#22d3ee"/></marker>
+            <marker id="a2" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#34d399"/></marker>
+            <marker id="a3" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#fbbf24"/></marker>
+            <marker id="a4" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#a78bfa"/></marker>
+            <pattern id="gg" width="25" height="25" patternUnits="userSpaceOnUse"><path d="M 25 0 L 0 0 0 25" fill="none" stroke="#1e293b" stroke-width="0.3"/></pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#gg)"/>
+
+          <!-- ========== ESP32 Device (Left) ========== -->
+          <rect x="15" y="15" width="380" height="670" rx="12" fill="rgba(8,51,68,0.15)" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="6,3"/>
+          <text x="27" y="40" fill="#22d3ee" font-size="13" font-weight="700">ESP32 Device</text>
+          <text x="27" y="56" fill="#64748b" font-size="8">Compile firmware once · Long-term use · All settings via Web page</text>
+
+          <!-- Audio Input -->
+          <rect x="35" y="75" width="160" height="50" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+          <text x="115" y="96" fill="white" font-size="10" font-weight="600" text-anchor="middle">🎤 Microphone</text>
+          <text x="115" y="112" fill="#94a3b8" font-size="7" text-anchor="middle">I2S · INMP441 · 16kHz PCM</text>
+
+          <!-- Audio Output -->
+          <rect x="210" y="75" width="160" height="50" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+          <text x="290" y="96" fill="white" font-size="10" font-weight="600" text-anchor="middle">🔈 Speaker</text>
+          <text x="290" y="112" fill="#94a3b8" font-size="7" text-anchor="middle">I2S · MAX98357 · Opus decode &amp; play</text>
+
+          <!-- Wake/Trigger -->
+          <rect x="35" y="140" width="335" height="45" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+          <text x="202" y="160" fill="white" font-size="10" font-weight="600" text-anchor="middle">🔔 Trigger Method</text>
+          <text x="202" y="176" fill="#94a3b8" font-size="7" text-anchor="middle">Pen: hold button to talk · Desk: wake word "Nǐ Hǎo Xīnxīn" + button</text>
+
+          <!-- Audio Codec -->
+          <rect x="35" y="200" width="335" height="50" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+          <text x="202" y="220" fill="white" font-size="10" font-weight="600" text-anchor="middle">🔊 Audio Codec</text>
+          <text x="202" y="236" fill="#94a3b8" font-size="7" text-anchor="middle">Opus encode (uplink) + Opus decode (downlink) · VAD silence detection · AEC echo cancellation (Desk)</text>
+
+          <!-- WiFi -->
+          <rect x="35" y="265" width="160" height="55" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+          <text x="115" y="286" fill="white" font-size="10" font-weight="600" text-anchor="middle">📶 WiFi Manager</text>
+          <text x="115" y="300" fill="#94a3b8" font-size="7" text-anchor="middle">Auto-connect to home WiFi</text>
+          <text x="115" y="312" fill="#94a3b8" font-size="7" text-anchor="middle">Not found → phone hotspot</text>
+
+          <!-- WebSocket -->
+          <rect x="210" y="265" width="160" height="55" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+          <text x="290" y="286" fill="white" font-size="10" font-weight="600" text-anchor="middle">📡 WebSocket</text>
+          <text x="290" y="300" fill="#94a3b8" font-size="7" text-anchor="middle">Connect to Agent backend</text>
+          <text x="290" y="312" fill="#94a3b8" font-size="7" text-anchor="middle">Send/receive Opus audio + JSON control</text>
+
+          <!-- Web Config -->
+          <rect x="35" y="335" width="335" height="100" rx="6" fill="rgba(34,211,238,0.1)" stroke="#22d3ee" stroke-width="2"/>
+          <text x="202" y="355" fill="#22d3ee" font-size="11" font-weight="700" text-anchor="middle">⚙️ Web Config Page (runs on ESP32)</text>
+          <text x="202" y="375" fill="#94a3b8" font-size="8" text-anchor="middle">Phone connects AP Hotspot → Browser 192.168.4.1 → Change all settings</text>
+          <text x="202" y="392" fill="white" font-size="8" text-anchor="middle">· Agent backend address (change address = switch Agent)</text>
+          <text x="202" y="406" fill="white" font-size="8" text-anchor="middle">· WiFi config · Volume · Language · Device name · Firmware update</text>
+          <text x="202" y="424" fill="#34d399" font-size="7" font-weight="600" text-anchor="middle">⚡ No firmware change, no recompile — web change takes effect instantly</text>
+
+          <!-- Hardware -->
+          <rect x="35" y="450" width="160" height="45" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
+          <text x="115" y="470" fill="white" font-size="9" font-weight="600" text-anchor="middle">🔘 Button · LED</text>
+          <text x="115" y="486" fill="#94a3b8" font-size="7" text-anchor="middle">Single/long/double press · Status LED</text>
+
+          <rect x="210" y="450" width="160" height="45" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
+          <text x="290" y="470" fill="white" font-size="9" font-weight="600" text-anchor="middle">🖥️ Display (Desk)</text>
+          <text x="290" y="486" fill="#94a3b8" font-size="7" text-anchor="middle">OLED · Chat text · Status · Time</text>
+
+          <!-- Camera -->
+          <rect x="35" y="510" width="335" height="40" rx="6" fill="rgba(244,114,182,0.1)" stroke="#f472b6" stroke-width="1"/>
+          <text x="202" y="535" fill="#f472b6" font-size="9" font-weight="600" text-anchor="middle">📷 Camera OV2640 (Eye versions) · JPEG encode → send to Agent backend for multimodal analysis</text>
+
+          <!-- OTA -->
+          <rect x="35" y="565" width="335" height="35" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
+          <text x="202" y="587" fill="#94a3b8" font-size="8" text-anchor="middle">🔄 OTA firmware update · Upload via Web page · No USB cable needed</text>
+
+          <!-- Power -->
+          <rect x="35" y="615" width="160" height="35" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
+          <text x="115" y="637" fill="#94a3b8" font-size="8" text-anchor="middle">🔋 Pen: LiPo battery + USB-C</text>
+
+          <rect x="210" y="615" width="160" height="35" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
+          <text x="290" y="637" fill="#94a3b8" font-size="8" text-anchor="middle">🔌 Desk: USB-C continuous power</text>
+
+          <!-- Internal arrows -->
+          <line x1="115" y1="125" x2="115" y2="138" stroke="#22d3ee" stroke-width="1" marker-end="url(#a1)"/>
+          <line x1="202" y1="185" x2="202" y2="198" stroke="#22d3ee" stroke-width="1" marker-end="url(#a1)"/>
+          <line x1="202" y1="250" x2="202" y2="263" stroke="#22d3ee" stroke-width="1" marker-end="url(#a1)"/>
+
+          <!-- ========== WiFi/Network (Center) ========== -->
+          <rect x="430" y="260" width="140" height="120" rx="10" fill="rgba(30,41,59,0.6)" stroke="#94a3b8" stroke-width="1.5"/>
+          <text x="500" y="290" fill="white" font-size="11" font-weight="700" text-anchor="middle">📶 Network Layer</text>
+          <text x="500" y="310" fill="#94a3b8" font-size="8" text-anchor="middle">WiFi / Phone Hotspot</text>
+          <text x="500" y="328" fill="#94a3b8" font-size="8" text-anchor="middle">WebSocket / HTTP</text>
+          <text x="500" y="350" fill="#64748b" font-size="7" text-anchor="middle">At home → home WiFi → LAN</text>
+          <text x="500" y="365" fill="#64748b" font-size="7" text-anchor="middle">Outside → phone hotspot → Internet</text>
+
+          <!-- Arrow: ESP32 → Network -->
+          <line x1="370" y1="385" x2="428" y2="340" stroke="#22d3ee" stroke-width="2" marker-end="url(#a1)"/>
+          <text x="390" y="355" fill="#22d3ee" font-size="7" text-anchor="middle">Audio uplink</text>
+
+          <!-- Arrow: Network → ESP32 -->
+          <line x1="428" y1="320" x2="370" y2="370" stroke="#34d399" stroke-width="2" marker-end="url(#a2)"/>
+          <text x="390" y="340" fill="#34d399" font-size="7" text-anchor="middle">Audio downlink</text>
+
+          <!-- ========== Agent Backend (Right) ========== -->
+          <rect x="610" y="15" width="670" height="670" rx="12" fill="rgba(6,78,59,0.1)" stroke="#34d399" stroke-width="1.5" stroke-dasharray="6,3"/>
+          <text x="622" y="40" fill="#34d399" font-size="13" font-weight="700">Agent Backend (Brain)</text>
+          <text x="622" y="56" fill="#64748b" font-size="8">All intelligence lives here · Can be Hermes, XiaoZhi official, self-hosted, or any compatible Agent</text>
+
+          <!-- ASR -->
+          <rect x="630" y="75" width="200" height="65" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+          <text x="730" y="96" fill="white" font-size="11" font-weight="600" text-anchor="middle">🗣️ ASR Speech Recognition</text>
+          <text x="730" y="114" fill="#94a3b8" font-size="8" text-anchor="middle">Whisper · DeepSeek · 阿里Paraformer</text>
+          <text x="730" y="128" fill="#fbbf24" font-size="7" text-anchor="middle">Opus audio → text</text>
+
+          <!-- LLM -->
+          <rect x="850" y="75" width="210" height="85" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+          <text x="955" y="96" fill="white" font-size="11" font-weight="600" text-anchor="middle">🧠 LLM Inference</text>
+          <text x="955" y="114" fill="#94a3b8" font-size="8" text-anchor="middle">DeepSeek · Qwen · Claude · GPT</text>
+          <text x="955" y="128" fill="#94a3b8" font-size="8" text-anchor="middle">Gemini · Local Ollama</text>
+          <text x="955" y="146" fill="#34d399" font-size="7" text-anchor="middle">Text understanding → text reply (streaming)</text>
+
+          <!-- TTS -->
+          <rect x="630" y="160" width="200" height="65" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+          <text x="730" y="181" fill="white" font-size="11" font-weight="600" text-anchor="middle">🎵 TTS Speech Synthesis</text>
+          <text x="730" y="199" fill="#94a3b8" font-size="8" text-anchor="middle">OpenAI TTS · Edge TTS · GPT-SoVITS</text>
+          <text x="730" y="213" fill="#fbbf24" font-size="7" text-anchor="middle">Text → Opus audio</text>
+
+          <!-- Context -->
+          <rect x="850" y="180" width="210" height="45" rx="6" fill="rgba(167,139,250,0.15)" stroke="#a78bfa" stroke-width="1.5"/>
+          <text x="955" y="200" fill="white" font-size="10" font-weight="600" text-anchor="middle">📋 Context Management</text>
+          <text x="955" y="216" fill="#94a3b8" font-size="7" text-anchor="middle">Multi-turn history · Persona Prompt · Memory</text>
+
+          <!-- Vision -->
+          <rect x="1080" y="75" width="180" height="50" rx="6" fill="rgba(244,114,182,0.15)" stroke="#f472b6" stroke-width="1"/>
+          <text x="1170" y="96" fill="white" font-size="10" font-weight="600" text-anchor="middle">👁️ Vision Understanding</text>
+          <text x="1170" y="114" fill="#94a3b8" font-size="7" text-anchor="middle">GPT-4o-mini · Qwen-VL (Eye versions)</text>
+
+          <!-- Tools -->
+          <rect x="630" y="250" width="630" height="120" rx="8" fill="rgba(167,139,250,0.1)" stroke="#a78bfa" stroke-width="1.5"/>
+          <text x="945" y="275" fill="#a78bfa" font-size="12" font-weight="700" text-anchor="middle">🛠️ Tool Calling (Function Calling / MCP)</text>
+          <text x="730" y="300" fill="#94a3b8" font-size="9" text-anchor="middle">🌤️ Weather</text>
+          <text x="730" y="318" fill="#94a3b8" font-size="9" text-anchor="middle">🔍 Web Search</text>
+          <text x="730" y="336" fill="#94a3b8" font-size="9" text-anchor="middle">🎵 Music Playback</text>
+          <text x="945" y="300" fill="#94a3b8" font-size="9" text-anchor="middle">🏠 Smart Home</text>
+          <text x="945" y="318" fill="#94a3b8" font-size="9" text-anchor="middle">📅 Calendar</text>
+          <text x="945" y="336" fill="#94a3b8" font-size="9" text-anchor="middle">📧 Email</text>
+          <text x="1160" y="300" fill="#94a3b8" font-size="9" text-anchor="middle">💡 Home Assistant</text>
+          <text x="1160" y="318" fill="#94a3b8" font-size="9" text-anchor="middle">🔧 Custom MCP Tools</text>
+          <text x="1160" y="336" fill="#94a3b8" font-size="9" text-anchor="middle">📱 Xiaomi/Tuya</text>
+          <text x="945" y="358" fill="#a78bfa" font-size="7" text-anchor="middle">Tools registered on backend — ESP32 has no idea · Adding tools = backend change only, ESP32 untouched</text>
+
+          <!-- Backend Options -->
+          <rect x="630" y="395" width="630" height="100" rx="8" fill="rgba(30,41,59,0.5)" stroke="#94a3b8" stroke-width="1"/>
+          <text x="945" y="420" fill="white" font-size="11" font-weight="600" text-anchor="middle">🔄 Available Backends (switch via ESP32 config page address)</text>
+          <text x="730" y="445" fill="#22d3ee" font-size="9" font-weight="600" text-anchor="middle">Hermes (local PC)</text>
+          <text x="730" y="462" fill="#64748b" font-size="7" text-anchor="middle">Most powerful · Full tool support</text>
+          <text x="945" y="445" fill="#a78bfa" font-size="9" font-weight="600" text-anchor="middle">Other Compatible Agents</text>
+          <text x="945" y="462" fill="#64748b" font-size="7" text-anchor="middle">Works when you're away</text>
+          <text x="1160" y="445" fill="#fbbf24" font-size="9" font-weight="600" text-anchor="middle">Other Agent Platforms</text>
+          <text x="1160" y="462" fill="#64748b" font-size="7" text-anchor="middle">Any protocol-compatible backend</text>
+          <text x="945" y="488" fill="#34d399" font-size="8" font-weight="600" text-anchor="middle">⚡ ESP32 only knows the address — it doesn't care who's behind it · Switch backend = change address, no firmware update</text>
+
+          <!-- Web Admin -->
+          <rect x="630" y="520" width="630" height="55" rx="6" fill="rgba(34,211,238,0.08)" stroke="#22d3ee" stroke-width="1"/>
+          <text x="945" y="545" fill="#22d3ee" font-size="10" font-weight="600" text-anchor="middle">🌐 Agent Admin Dashboard</text>
+          <text x="945" y="565" fill="#94a3b8" font-size="8" text-anchor="middle">Persona Prompt · API Key · Tool toggles · TTS voice · Chat history · Device management</text>
+
+          <!-- Data Flow Labels -->
+          <rect x="630" y="600" width="630" height="70" rx="6" fill="rgba(30,41,59,0.4)" stroke="#94a3b8" stroke-width="1"/>
+          <text x="945" y="620" fill="white" font-size="10" font-weight="600" text-anchor="middle">📡 Data Flow: One Complete Conversation</text>
+          <text x="945" y="640" fill="#94a3b8" font-size="8" text-anchor="middle">① User presses button / wake word → ② ESP32 records (Opus) → ③ Send to Agent backend → ④ ASR → LLM → TTS</text>
+          <text x="945" y="658" fill="#94a3b8" font-size="8" text-anchor="middle">→ ⑤ Agent returns Opus audio → ⑥ ESP32 decodes & plays through speaker → ④⑦ Display text on screen</text>
+
+          <!-- Arrow: Network → Agent -->
+          <line x1="570" y1="320" x2="628" y2="250" stroke="#34d399" stroke-width="2" marker-end="url(#a2)"/>
+          <text x="590" y="270" fill="#34d399" font-size="7" text-anchor="middle">Audio+control</text>
+          <line x1="628" y1="230" x2="570" y2="300" stroke="#fbbf24" stroke-width="2" marker-end="url(#a3)"/>
+          <text x="590" y="260" fill="#fbbf24" font-size="7" text-anchor="middle">Reply audio</text>
+
+          <!-- ASR→LLM→TTS flow -->
+          <line x1="830" y1="108" x2="848" y2="108" stroke="#34d399" stroke-width="1.5" marker-end="url(#a2)"/>
+          <line x1="955" y1="160" x2="955" y2="178" stroke="#34d399" stroke-width="1"/>
+          <path d="M 955 178 L 955 195 Q 955 200 940 200 L 832 200 Q 830 200 830 198 L 830 195" fill="none" stroke="#34d399" stroke-width="1" marker-end="url(#a2)"/>
+          <line x1="955" y1="160" x2="955" y2="178" stroke="#a78bfa" stroke-width="1" marker-end="url(#a4)"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Version Cards -->
+    <div class="section">
+      <h2>📦 4-Version Product Line</h2>
+      <div class="versions">
+        <div class="vcard v1">
+          <h3>🖊️ Pen Basic</h3>
+          <div class="tag">XiaoXi Pen · C3</div>
+          <div class="s">Chip: <strong>ESP32-C3</strong> (5×5mm)</div>
+          <div class="s">Trigger: <strong>Button</strong> (hold tail)</div>
+          <div class="s">Web Config: <strong>✅</strong> AP Hotspot</div>
+          <div class="p">¥99 ~ ¥149</div>
+          <div class="c">Hardware cost ~29元</div>
+          <div class="feat">
+            <div class="fr"><span class="y">✓</span>Voice Dialog</div>
+            <div class="fr"><span class="y">✓</span>Phone hotspot connectivity</div>
+            <div class="fr"><span class="y">✓</span>Web Config Page</div>
+            <div class="fr"><span class="n">✗</span>Camera</div>
+            <div class="fr"><span class="n">✗</span>Display</div>
+          </div>
+        </div>
+        <div class="vcard v2">
+          <h3>📸 Pen Eye</h3>
+          <div class="tag">XiaoXi Pen Eye · CAM</div>
+          <div class="s">Chip: <strong>ESP32-CAM</strong> (S3+OV2640)</div>
+          <div class="s">Trigger: <strong>Button</strong> (short press talk / long press photo)</div>
+          <div class="s">Web Config: <strong>✅</strong> AP Hotspot</div>
+          <div class="p">¥199 ~ ¥299</div>
+          <div class="c">Hardware cost ~55元</div>
+          <div class="feat">
+            <div class="fr"><span class="y">✓</span>Voice Dialog</div>
+            <div class="fr"><span class="y">✓</span>Photo Understanding</div>
+            <div class="fr"><span class="y">✓</span>Web Config Page</div>
+            <div class="fr"><span class="n">✗</span>Display</div>
+            <div class="fr"><span class="n">✗</span>Wake Word</div>
+          </div>
+        </div>
+        <div class="vcard v3">
+          <h3>🖥️ Desk Standard</h3>
+          <div class="tag">XiaoXi Desk · S3</div>
+          <div class="s">Chip: <strong>ESP32-S3</strong></div>
+          <div class="s">Trigger: <strong>"Nǐ Hǎo Xīnxīn"</strong> + button</div>
+          <div class="s">Web Config: <strong>✅</strong> AP Hotspot</div>
+          <div class="p">¥199 ~ ¥249</div>
+          <div class="c">Hardware cost ~55元</div>
+          <div class="feat">
+            <div class="fr"><span class="y">✓</span>Wake Word + Interrupt</div>
+            <div class="fr"><span class="y">✓</span>Display Screen</div>
+            <div class="fr"><span class="y">✓</span>AEC Echo Cancellation</div>
+            <div class="fr"><span class="n">✗</span>Camera</div>
+            <div class="fr"><span class="y">✓</span>Home Assistant</div>
+          </div>
+        </div>
+        <div class="vcard v4">
+          <h3>👁️ Desk Eye</h3>
+          <div class="tag">XiaoXi Desk Eye · S3 Mini</div>
+          <div class="s">Chip: <strong>ESP32-S3 Mini</strong> (13×20mm)</div>
+          <div class="s">Trigger: <strong>"Nǐ Hǎo Xīnxīn"</strong> + button</div>
+          <div class="s">Web Config: <strong>✅</strong> AP Hotspot</div>
+          <div class="p">¥249 ~ ¥349</div>
+          <div class="c">Hardware cost ~63元</div>
+          <div class="feat">
+            <div class="fr"><span class="y">✓</span>Full-featured</div>
+            <div class="fr"><span class="y">✓</span>Voice + Vision</div>
+            <div class="fr"><span class="y">✓</span>Display + Camera</div>
+            <div class="fr"><span class="y">✓</span>Multimodal LLM</div>
+            <div class="fr"><span class="y">✓</span>Home Assistant</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- vs XZhi Comparison -->
+    <div class="section">
+      <h2>⚡ Key Differences from XiaoZhi</h2>
+      <div class="diagram-box">
+        <table class="tbl">
+          <thead><tr><th>Comparison</th><th>XiaoZhi (original)</th><th>XiaoXi (our approach)</th></tr></thead>
+          <tbody>
+            <tr><td>Backend connection</td><td>Hardcoded to official server</td><td class="hl">Address configurable, switch freely</td></tr>
+            <tr><td>Change settings</td><td>Recompile firmware + reflash</td><td class="hl">Change in Web page, instant effect</td></tr>
+            <tr><td>Switch LLM</td><td>Modify firmware</td><td class="hl">Change backend, ESP32 doesn't know</td></tr>
+            <tr><td>Add tools</td><td>Modify firmware</td><td class="hl">Backend adds, ESP32 doesn't know</td></tr>
+            <tr><td>Agent capability</td><td>Depends on backend</td><td class="hl">Connect Hermes = full-featured Agent</td></tr>
+            <tr><td>Offline use</td><td>Need Docker self-hosted server</td><td class="hl">Just run Hermes on your PC</td></tr>
+            <tr><td>Network setup</td><td>Need PC client app</td><td class="hl">ESP32 has built-in Web page</td></tr>
+            <tr><td>Hardware cost</td><td>~50元</td><td class="hl">~29元起 (from ~29元)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="footer">
+      XiaoXi hermes-xiaoxi · XiaoXi · ESP32 Device + Agent Backend · Open Hardware + Open Firmware · MIT License · 2026
+    </div>
+  </div>
+</body>
+</html>
