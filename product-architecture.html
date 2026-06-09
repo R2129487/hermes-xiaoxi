@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小希项目 (hermes-xiaoxi) · 系统架构</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #0a0e1a; min-height: 100vh; color: #e2e8f0; padding: 2rem; }
+    .container { max-width: 1400px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .header h1 span { color: #22d3ee; }
+    .header p { color: #64748b; font-size: 0.9rem; }
+    .section { margin-bottom: 2.5rem; }
+    .section h2 { font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem; }
+    .diagram-box { background: rgba(15, 23, 42, 0.5); border: 1px solid #1e293b; border-radius: 1rem; padding: 1.5rem; overflow-x: auto; }
+
+    .versions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.2rem; margin-bottom: 2rem; }
+    .vcard { background: rgba(15, 23, 42, 0.6); border: 1px solid #1e293b; border-radius: 1rem; padding: 1.2rem; position: relative; overflow: hidden; }
+    .vcard::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+    .v1::before { background: #22d3ee; } .v2::before { background: #f472b6; } .v3::before { background: #a78bfa; } .v4::before { background: #fbbf24; }
+    .vcard h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.15rem; }
+    .vcard .tag { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.6rem; font-weight: 600; margin-bottom: 0.6rem; }
+    .v1 .tag { background: rgba(34,211,238,0.15); color: #22d3ee; }
+    .v2 .tag { background: rgba(244,114,182,0.15); color: #f472b6; }
+    .v3 .tag { background: rgba(167,139,250,0.15); color: #a78bfa; }
+    .v4 .tag { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .vcard .s { font-size: 0.68rem; color: #94a3b8; margin-bottom: 0.2rem; }
+    .vcard .s strong { color: #e2e8f0; }
+    .vcard .p { font-size: 1.2rem; font-weight: 700; margin: 0.4rem 0 0.1rem; }
+    .v1 .p { color: #22d3ee; } .v2 .p { color: #f472b6; } .v3 .p { color: #a78bfa; } .v4 .p { color: #fbbf24; }
+    .vcard .c { font-size: 0.65rem; color: #475569; }
+    .fr { display: flex; align-items: center; gap: 0.3rem; font-size: 0.65rem; color: #94a3b8; margin-bottom: 0.15rem; }
+    .fr .y { color: #34d399; } .fr .n { color: #475569; }
+    .feat { margin-top: 0.5rem; }
+
+    .tbl { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+    .tbl th, .tbl td { padding: 0.5rem 0.8rem; border-bottom: 1px solid #1e293b; text-align: left; }
+    .tbl th { color: #94a3b8; font-weight: 500; font-size: 0.68rem; text-transform: uppercase; }
+    .tbl td { color: #e2e8f0; }
+    .tbl .hl { color: #22d3ee; font-weight: 600; }
+    .footer { text-align: center; padding: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🖊️ <span>小希</span> · 系统架构 v3.0</h1>
+      <p>ESP32设备端 + Agent后端 · 固件编译一次不用动 · 改地址换Agent · 2026</p>
+    </div>
+
+    <!-- Core Architecture Diagram -->
+    <div class="section">
+      <h2>🏗️ 核心架构：ESP32设备端 + Agent后端</h2>
+      <div class="diagram-box">
+        <svg viewBox="0 0 1300 700">
+          <defs>
+            <marker id="a1" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#22d3ee"/></marker>
+            <marker id="a2" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#34d399"/></marker>
+            <marker id="a3" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#fbbf24"/></marker>
+            <marker id="a4" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#a78bfa"/></marker>
+            <pattern id="gg" width="25" height="25" patternUnits="userSpaceOnUse"><path d="M 25 0 L 0 0 0 25" fill="none" stroke="#1e293b" stroke-width="0.3"/></pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#gg)"/>
+
+          <!-- ========== ESP32 Device (Left) ========== -->
+          <rect x="15" y="15" width="380" height="670" rx="12" fill="rgba(8,51,68,0.15)" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="6,3"/>
+          <text x="27" y="40" fill="#22d3ee" font-size="13" font-weight="700">ESP32 设备端</text>
+          <text x="27" y="56" fill="#64748b" font-size="8">固件编译一次 · 长期使用 · 所有设置通过Web页面修改</text>
+
+          <!-- Audio Input -->
+          <rect x="35" y="75" width="160" height="50" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+          <text x="115" y="96" fill="white" font-size="10" font-weight="600" text-anchor="middle">🎤 麦克风</text>
+          <text x="115" y="112" fill="#94a3b8" font-size="7" text-anchor="middle">I2S · INMP441 · 16kHz PCM</text>
+
+          <!-- Audio Output -->
+          <rect x="210" y="75" width="160" height="50" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+          <text x="290" y="96" fill="white" font-size="10" font-weight="600" text-anchor="middle">🔈 喇叭</text>
+          <text x="290" y="112" fill="#94a3b8" font-size="7" text-anchor="middle">I2S · MAX98357 · Opus解码播放</text>
+
+          <!-- Wake/Trigger -->
+          <rect x="35" y="140" width="335" height="45" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+          <text x="202" y="160" fill="white" font-size="10" font-weight="600" text-anchor="middle">🔔 触发方式</text>
+          <text x="202" y="176" fill="#94a3b8" font-size="7" text-anchor="middle">笔形版：按钮按住说话 · 桌面版：语音唤醒"你好小鑫" + 按钮</text>
+
+          <!-- Audio Codec -->
+          <rect x="35" y="200" width="335" height="50" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+          <text x="202" y="220" fill="white" font-size="10" font-weight="600" text-anchor="middle">🔊 音频编解码</text>
+          <text x="202" y="236" fill="#94a3b8" font-size="7" text-anchor="middle">Opus 编码(上行) + Opus 解码(下行) · VAD静音检测 · AEC回声消除(桌面版)</text>
+
+          <!-- WiFi -->
+          <rect x="35" y="265" width="160" height="55" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+          <text x="115" y="286" fill="white" font-size="10" font-weight="600" text-anchor="middle">📶 WiFi管理</text>
+          <text x="115" y="300" fill="#94a3b8" font-size="7" text-anchor="middle">自动连接家里WiFi</text>
+          <text x="115" y="312" fill="#94a3b8" font-size="7" text-anchor="middle">搜不到→连手机热点</text>
+
+          <!-- WebSocket -->
+          <rect x="210" y="265" width="160" height="55" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+          <text x="290" y="286" fill="white" font-size="10" font-weight="600" text-anchor="middle">📡 WebSocket</text>
+          <text x="290" y="300" fill="#94a3b8" font-size="7" text-anchor="middle">连接Agent后端</text>
+          <text x="290" y="312" fill="#94a3b8" font-size="7" text-anchor="middle">收发Opus音频+JSON控制</text>
+
+          <!-- Web Config -->
+          <rect x="35" y="335" width="335" height="100" rx="6" fill="rgba(34,211,238,0.1)" stroke="#22d3ee" stroke-width="2"/>
+          <text x="202" y="355" fill="#22d3ee" font-size="11" font-weight="700" text-anchor="middle">⚙️ Web配置页面（ESP32上运行）</text>
+          <text x="202" y="375" fill="#94a3b8" font-size="8" text-anchor="middle">手机连AP热点 → 浏览器 192.168.4.1 → 修改所有设置</text>
+          <text x="202" y="392" fill="white" font-size="8" text-anchor="middle">· Agent后端地址（改地址=换Agent）</text>
+          <text x="202" y="406" fill="white" font-size="8" text-anchor="middle">· WiFi配置 · 音量 · 语言 · 设备名称 · 固件升级</text>
+          <text x="202" y="424" fill="#34d399" font-size="7" font-weight="600" text-anchor="middle">⚡ 不用改固件，不用重编译，网页改完秒生效</text>
+
+          <!-- Hardware -->
+          <rect x="35" y="450" width="160" height="45" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
+          <text x="115" y="470" fill="white" font-size="9" font-weight="600" text-anchor="middle">🔘 按钮 · LED</text>
+          <text x="115" y="486" fill="#94a3b8" font-size="7" text-anchor="middle">单击/长按/双击 · 状态指示灯</text>
+
+          <rect x="210" y="450" width="160" height="45" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
+          <text x="290" y="470" fill="white" font-size="9" font-weight="600" text-anchor="middle">🖥️ 屏幕（桌面版）</text>
+          <text x="290" y="486" fill="#94a3b8" font-size="7" text-anchor="middle">OLED · 对话文字 · 状态 · 时间</text>
+
+          <!-- Camera -->
+          <rect x="35" y="510" width="335" height="40" rx="6" fill="rgba(244,114,182,0.1)" stroke="#f472b6" stroke-width="1"/>
+          <text x="202" y="535" fill="#f472b6" font-size="9" font-weight="600" text-anchor="middle">📷 摄像头 OV2640（视觉版）· JPEG编码 → 发送到Agent后端做多模态分析</text>
+
+          <!-- OTA -->
+          <rect x="35" y="565" width="335" height="35" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
+          <text x="202" y="587" fill="#94a3b8" font-size="8" text-anchor="middle">🔄 OTA固件升级 · 通过Web页面上传 · 不需要USB线</text>
+
+          <!-- Power -->
+          <rect x="35" y="615" width="160" height="35" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
+          <text x="115" y="637" fill="#94a3b8" font-size="8" text-anchor="middle">🔋 笔形版：锂电池+USB-C</text>
+
+          <rect x="210" y="615" width="160" height="35" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
+          <text x="290" y="637" fill="#94a3b8" font-size="8" text-anchor="middle">🔌 桌面版：USB-C持续供电</text>
+
+          <!-- Internal arrows -->
+          <line x1="115" y1="125" x2="115" y2="138" stroke="#22d3ee" stroke-width="1" marker-end="url(#a1)"/>
+          <line x1="202" y1="185" x2="202" y2="198" stroke="#22d3ee" stroke-width="1" marker-end="url(#a1)"/>
+          <line x1="202" y1="250" x2="202" y2="263" stroke="#22d3ee" stroke-width="1" marker-end="url(#a1)"/>
+
+          <!-- ========== WiFi/Network (Center) ========== -->
+          <rect x="430" y="260" width="140" height="120" rx="10" fill="rgba(30,41,59,0.6)" stroke="#94a3b8" stroke-width="1.5"/>
+          <text x="500" y="290" fill="white" font-size="11" font-weight="700" text-anchor="middle">📶 网络层</text>
+          <text x="500" y="310" fill="#94a3b8" font-size="8" text-anchor="middle">WiFi / 手机热点</text>
+          <text x="500" y="328" fill="#94a3b8" font-size="8" text-anchor="middle">WebSocket / HTTP</text>
+          <text x="500" y="350" fill="#64748b" font-size="7" text-anchor="middle">在家→家WiFi→局域网</text>
+          <text x="500" y="365" fill="#64748b" font-size="7" text-anchor="middle">在外→手机热点→互联网</text>
+
+          <!-- Arrow: ESP32 → Network -->
+          <line x1="370" y1="385" x2="428" y2="340" stroke="#22d3ee" stroke-width="2" marker-end="url(#a1)"/>
+          <text x="390" y="355" fill="#22d3ee" font-size="7" text-anchor="middle">音频上行</text>
+
+          <!-- Arrow: Network → ESP32 -->
+          <line x1="428" y1="320" x2="370" y2="370" stroke="#34d399" stroke-width="2" marker-end="url(#a2)"/>
+          <text x="390" y="340" fill="#34d399" font-size="7" text-anchor="middle">音频下行</text>
+
+          <!-- ========== Agent Backend (Right) ========== -->
+          <rect x="610" y="15" width="670" height="670" rx="12" fill="rgba(6,78,59,0.1)" stroke="#34d399" stroke-width="1.5" stroke-dasharray="6,3"/>
+          <text x="622" y="40" fill="#34d399" font-size="13" font-weight="700">Agent 后端（大脑）</text>
+          <text x="622" y="56" fill="#64748b" font-size="8">所有智能都在这里 · 可以是Hermes、小智官方、自建后端、任何兼容Agent</text>
+
+          <!-- ASR -->
+          <rect x="630" y="75" width="200" height="65" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+          <text x="730" y="96" fill="white" font-size="11" font-weight="600" text-anchor="middle">🗣️ ASR 语音识别</text>
+          <text x="730" y="114" fill="#94a3b8" font-size="8" text-anchor="middle">Whisper · DeepSeek · 阿里Paraformer</text>
+          <text x="730" y="128" fill="#fbbf24" font-size="7" text-anchor="middle">Opus音频 → 文字</text>
+
+          <!-- LLM -->
+          <rect x="850" y="75" width="210" height="85" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+          <text x="955" y="96" fill="white" font-size="11" font-weight="600" text-anchor="middle">🧠 LLM 大模型推理</text>
+          <text x="955" y="114" fill="#94a3b8" font-size="8" text-anchor="middle">DeepSeek · 千问 · Claude · GPT</text>
+          <text x="955" y="128" fill="#94a3b8" font-size="8" text-anchor="middle">Gemini · 本地Ollama</text>
+          <text x="955" y="146" fill="#34d399" font-size="7" text-anchor="middle">文字理解 → 文字回复（流式）</text>
+
+          <!-- TTS -->
+          <rect x="630" y="160" width="200" height="65" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+          <text x="730" y="181" fill="white" font-size="11" font-weight="600" text-anchor="middle">🎵 TTS 语音合成</text>
+          <text x="730" y="199" fill="#94a3b8" font-size="8" text-anchor="middle">OpenAI TTS · Edge TTS · GPT-SoVITS</text>
+          <text x="730" y="213" fill="#fbbf24" font-size="7" text-anchor="middle">文字 → Opus音频</text>
+
+          <!-- Context -->
+          <rect x="850" y="180" width="210" height="45" rx="6" fill="rgba(167,139,250,0.15)" stroke="#a78bfa" stroke-width="1.5"/>
+          <text x="955" y="200" fill="white" font-size="10" font-weight="600" text-anchor="middle">📋 上下文管理</text>
+          <text x="955" y="216" fill="#94a3b8" font-size="7" text-anchor="middle">多轮对话历史 · 人设Prompt · 记忆</text>
+
+          <!-- Vision -->
+          <rect x="1080" y="75" width="180" height="50" rx="6" fill="rgba(244,114,182,0.15)" stroke="#f472b6" stroke-width="1"/>
+          <text x="1170" y="96" fill="white" font-size="10" font-weight="600" text-anchor="middle">👁️ 视觉理解</text>
+          <text x="1170" y="114" fill="#94a3b8" font-size="7" text-anchor="middle">GPT-4o-mini · 千问VL（视觉版用）</text>
+
+          <!-- Tools -->
+          <rect x="630" y="250" width="630" height="120" rx="8" fill="rgba(167,139,250,0.1)" stroke="#a78bfa" stroke-width="1.5"/>
+          <text x="945" y="275" fill="#a78bfa" font-size="12" font-weight="700" text-anchor="middle">🛠️ 工具调用 (Function Calling / MCP)</text>
+          <text x="730" y="300" fill="#94a3b8" font-size="9" text-anchor="middle">🌤️ 天气查询</text>
+          <text x="730" y="318" fill="#94a3b8" font-size="9" text-anchor="middle">🔍 搜索引擎</text>
+          <text x="730" y="336" fill="#94a3b8" font-size="9" text-anchor="middle">🎵 音乐播放</text>
+          <text x="945" y="300" fill="#94a3b8" font-size="9" text-anchor="middle">🏠 智能家居</text>
+          <text x="945" y="318" fill="#94a3b8" font-size="9" text-anchor="middle">📅 日程管理</text>
+          <text x="945" y="336" fill="#94a3b8" font-size="9" text-anchor="middle">📧 邮件收发</text>
+          <text x="1160" y="300" fill="#94a3b8" font-size="9" text-anchor="middle">💡 Home Assistant</text>
+          <text x="1160" y="318" fill="#94a3b8" font-size="9" text-anchor="middle">🔧 自定义MCP工具</text>
+          <text x="1160" y="336" fill="#94a3b8" font-size="9" text-anchor="middle">📱 米家/涂鸦</text>
+          <text x="945" y="358" fill="#a78bfa" font-size="7" text-anchor="middle">工具在后端注册，ESP32完全不知道 · 加新工具=后端加，ESP32不用动</text>
+
+          <!-- Backend Options -->
+          <rect x="630" y="395" width="630" height="100" rx="8" fill="rgba(30,41,59,0.5)" stroke="#94a3b8" stroke-width="1"/>
+          <text x="945" y="420" fill="white" font-size="11" font-weight="600" text-anchor="middle">🔄 可选后端（改ESP32配置页面的地址就能切换）</text>
+          <text x="730" y="445" fill="#22d3ee" font-size="9" font-weight="600" text-anchor="middle">Hermes（本地电脑）</text>
+          <text x="730" y="462" fill="#64748b" font-size="7" text-anchor="middle">功能最强 · 全工具支持</text>
+          <text x="945" y="445" fill="#a78bfa" font-size="9" font-weight="600" text-anchor="middle">其他兼容Agent</text>
+          <text x="945" y="462" fill="#64748b" font-size="7" text-anchor="middle">出门在外也能用</text>
+          <text x="1160" y="445" fill="#fbbf24" font-size="9" font-weight="600" text-anchor="middle">其他Agent平台</text>
+          <text x="1160" y="462" fill="#64748b" font-size="7" text-anchor="middle">任何兼容协议的后端</text>
+          <text x="945" y="488" fill="#34d399" font-size="8" font-weight="600" text-anchor="middle">⚡ ESP32只认地址，不知道连的是谁 · 换后端=改个地址，不用动固件</text>
+
+          <!-- Web Admin -->
+          <rect x="630" y="520" width="630" height="55" rx="6" fill="rgba(34,211,238,0.08)" stroke="#22d3ee" stroke-width="1"/>
+          <text x="945" y="545" fill="#22d3ee" font-size="10" font-weight="600" text-anchor="middle">🌐 Agent管理后台</text>
+          <text x="945" y="565" fill="#94a3b8" font-size="8" text-anchor="middle">人设Prompt · API Key · 工具开关 · TTS音色 · 对话历史查看 · 设备管理</text>
+
+          <!-- Data Flow Labels -->
+          <rect x="630" y="600" width="630" height="70" rx="6" fill="rgba(30,41,59,0.4)" stroke="#94a3b8" stroke-width="1"/>
+          <text x="945" y="620" fill="white" font-size="10" font-weight="600" text-anchor="middle">📡 数据流：一次完整对话</text>
+          <text x="945" y="640" fill="#94a3b8" font-size="8" text-anchor="middle">① 用户按按钮/唤醒 → ② ESP32录音(Opus) → ③ 发到Agent后端 → ④ ASR识别→LLM推理→TTS合成</text>
+          <text x="945" y="658" fill="#94a3b8" font-size="8" text-anchor="middle">→ ⑤ Agent返回Opus音频 → ⑥ ESP32解码播放到喇叭 → ⑦ 屏幕同步显示文字</text>
+
+          <!-- Arrow: Network → Agent -->
+          <line x1="570" y1="320" x2="628" y2="250" stroke="#34d399" stroke-width="2" marker-end="url(#a2)"/>
+          <text x="590" y="270" fill="#34d399" font-size="7" text-anchor="middle">音频+控制</text>
+          <line x1="628" y1="230" x2="570" y2="300" stroke="#fbbf24" stroke-width="2" marker-end="url(#a3)"/>
+          <text x="590" y="260" fill="#fbbf24" font-size="7" text-anchor="middle">回复音频</text>
+
+          <!-- ASR→LLM→TTS flow -->
+          <line x1="830" y1="108" x2="848" y2="108" stroke="#34d399" stroke-width="1.5" marker-end="url(#a2)"/>
+          <line x1="955" y1="160" x2="955" y2="178" stroke="#34d399" stroke-width="1"/>
+          <path d="M 955 178 L 955 195 Q 955 200 940 200 L 832 200 Q 830 200 830 198 L 830 195" fill="none" stroke="#34d399" stroke-width="1" marker-end="url(#a2)"/>
+          <line x1="955" y1="160" x2="955" y2="178" stroke="#a78bfa" stroke-width="1" marker-end="url(#a4)"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Version Cards -->
+    <div class="section">
+      <h2>📦 四版本产品线</h2>
+      <div class="versions">
+        <div class="vcard v1">
+          <h3>🖊️ 笔形基础版</h3>
+          <div class="tag">XiaoXi Pen · C3</div>
+          <div class="s">芯片：<strong>ESP32-C3</strong> (5×5mm)</div>
+          <div class="s">触发：<strong>按钮</strong>（笔尾按住）</div>
+          <div class="s">Web配置：<strong>✅</strong> AP热点</div>
+          <div class="p">¥99 ~ ¥149</div>
+          <div class="c">硬件成本 ~29元</div>
+          <div class="feat">
+            <div class="fr"><span class="y">✓</span>语音对话</div>
+            <div class="fr"><span class="y">✓</span>手机热点联网</div>
+            <div class="fr"><span class="y">✓</span>Web配置页面</div>
+            <div class="fr"><span class="n">✗</span>摄像头</div>
+            <div class="fr"><span class="n">✗</span>屏幕</div>
+          </div>
+        </div>
+        <div class="vcard v2">
+          <h3>📸 笔形视觉版</h3>
+          <div class="tag">XiaoXi Pen Eye · CAM</div>
+          <div class="s">芯片：<strong>ESP32-CAM</strong> (S3+OV2640)</div>
+          <div class="s">触发：<strong>按钮</strong>（短按说/长按拍）</div>
+          <div class="s">Web配置：<strong>✅</strong> AP热点</div>
+          <div class="p">¥199 ~ ¥299</div>
+          <div class="c">硬件成本 ~55元</div>
+          <div class="feat">
+            <div class="fr"><span class="y">✓</span>语音对话</div>
+            <div class="fr"><span class="y">✓</span>拍照理解</div>
+            <div class="fr"><span class="y">✓</span>Web配置页面</div>
+            <div class="fr"><span class="n">✗</span>屏幕</div>
+            <div class="fr"><span class="n">✗</span>语音唤醒</div>
+          </div>
+        </div>
+        <div class="vcard v3">
+          <h3>🖥️ 桌面标准版</h3>
+          <div class="tag">XiaoXi Desk · S3</div>
+          <div class="s">芯片：<strong>ESP32-S3</strong></div>
+          <div class="s">触发：<strong>"你好小鑫"</strong> + 按钮</div>
+          <div class="s">Web配置：<strong>✅</strong> AP热点</div>
+          <div class="p">¥199 ~ ¥249</div>
+          <div class="c">硬件成本 ~55元</div>
+          <div class="feat">
+            <div class="fr"><span class="y">✓</span>语音唤醒+打断</div>
+            <div class="fr"><span class="y">✓</span>屏幕显示</div>
+            <div class="fr"><span class="y">✓</span>AEC回声消除</div>
+            <div class="fr"><span class="n">✗</span>摄像头</div>
+            <div class="fr"><span class="y">✓</span>Home Assistant</div>
+          </div>
+        </div>
+        <div class="vcard v4">
+          <h3>👁️ 桌面视觉版</h3>
+          <div class="tag">XiaoXi Desk Eye · S3 Mini</div>
+          <div class="s">芯片：<strong>ESP32-S3 Mini</strong> (13×20mm)</div>
+          <div class="s">触发：<strong>"你好小鑫"</strong> + 按钮</div>
+          <div class="s">Web配置：<strong>✅</strong> AP热点</div>
+          <div class="p">¥249 ~ ¥349</div>
+          <div class="c">硬件成本 ~63元</div>
+          <div class="feat">
+            <div class="fr"><span class="y">✓</span>全功能</div>
+            <div class="fr"><span class="y">✓</span>语音+视觉</div>
+            <div class="fr"><span class="y">✓</span>屏幕+摄像头</div>
+            <div class="fr"><span class="y">✓</span>多模态LLM</div>
+            <div class="fr"><span class="y">✓</span>Home Assistant</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- vs XZhi Comparison -->
+    <div class="section">
+      <h2>⚡ 与小智的核心区别</h2>
+      <div class="diagram-box">
+        <table class="tbl">
+          <thead><tr><th>对比项</th><th>小智（原版）</th><th>小希（我们的方案）</th></tr></thead>
+          <tbody>
+            <tr><td>后端连接</td><td>写死连官方服务器</td><td class="hl">地址可配，随便换</td></tr>
+            <tr><td>改设置</td><td>重编译固件+重刷</td><td class="hl">Web页面改，秒生效</td></tr>
+            <tr><td>换大模型</td><td>改固件</td><td class="hl">后端换，ESP32不知道</td></tr>
+            <tr><td>加工具</td><td>改固件</td><td class="hl">后端加，ESP32不知道</td></tr>
+            <tr><td>Agent能力</td><td>取决于后端</td><td class="hl">接Hermes=全功能Agent</td></tr>
+            <tr><td>离线使用</td><td>需要Docker自建服务器</td><td class="hl">电脑跑Hermes就行</td></tr>
+            <tr><td>配网方式</td><td>需要电脑客户端</td><td class="hl">ESP32自带Web页面</td></tr>
+            <tr><td>硬件成本</td><td>~50元</td><td class="hl">~29元起</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="footer">
+      小希 hermes-xiaoxi · XiaoXi · ESP32设备端 + Agent后端 · 开源硬件 + 开源固件 · MIT License · 2026
+    </div>
+  </div>
+</body>
+</html>
