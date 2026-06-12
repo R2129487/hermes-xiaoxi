@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>小希 - 设备配置</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1a2e;color:#e0e0e0;font-family:-apple-system,system-ui,sans-serif;font-size:15px;padding:16px;min-height:100vh}
+.container{max-width:600px;margin:0 auto}
+h1{text-align:center;color:#00ff88;font-size:22px;margin-bottom:16px;padding:12px 0;border-bottom:1px solid #00ff8833}
+.section{background:#16213e;border-radius:12px;padding:16px;margin-bottom:14px;border:1px solid #ffffff10}
+.section h2{color:#00d4ff;font-size:16px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.section h2 .icon{font-size:18px}
+label{display:block;color:#a0a0c0;font-size:13px;margin-bottom:4px;margin-top:10px}
+label:first-child{margin-top:0}
+input[type=text],input[type=password],select{width:100%;padding:10px 12px;background:#0f1629;border:1px solid #ffffff20;border-radius:8px;color:#fff;font-size:14px;margin-bottom:6px;outline:none;transition:border .2s}
+input:focus,select:focus{border-color:#00ff88}
+input::placeholder{color:#555}
+select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2300ff88' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+select option{background:#16213e;color:#fff}
+.field-group{margin-top:8px}
+.btn{display:inline-block;padding:10px 20px;border:none;border-radius:8px;font-size:14px;cursor:pointer;transition:all .2s;font-weight:600}
+.btn-primary{background:#00ff88;color:#1a1a2e;width:100%;margin-top:14px;font-size:16px}
+.btn-primary:hover{background:#00cc6a}
+.btn-primary:active{transform:scale(0.98)}
+.btn-test{background:#00d4ff20;color:#00d4ff;border:1px solid #00d4ff40;font-size:12px;padding:6px 14px;margin-top:6px}
+.btn-test:hover{background:#00d4ff30}
+.status-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #ffffff08}
+.status-label{color:#a0a0c0;font-size:13px}
+.status-value{color:#fff;font-size:13px;font-weight:500}
+.status-connected{color:#00ff88}
+.status-disconnected{color:#ff4444}
+.hidden{display:none}
+.msg{text-align:center;padding:10px;border-radius:8px;margin-bottom:10px;font-size:14px;display:none}
+.msg.success{display:block;background:#00ff8820;color:#00ff88;border:1px solid #00ff8840}
+.msg.error{display:block;background:#ff444420;color:#ff4444;border:1px solid #ff444440}
+.test-result{font-size:12px;margin-top:4px;min-height:16px}
+.test-ok{color:#00ff88}
+.test-fail{color:#ff4444}
+.footer{text-align:center;color:#555;font-size:11px;margin-top:20px;padding:10px 0}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>🤖 小希 设备配置</h1>
+<div id="msg" class="msg"></div>
+
+<!-- 设备状态 -->
+<div class="section">
+<h2><span class="icon">📡</span>设备状态</h2>
+<div class="status-row"><span class="status-label">连接状态</span><span id="dev-status" class="status-value status-disconnected">未连接</span></div>
+<div class="status-row"><span class="status-label">WiFi SSID</span><span id="dev-ssid" class="status-value">-</span></div>
+<div class="status-row"><span class="status-label">IP 地址</span><span id="dev-ip" class="status-value">-</span></div>
+<div class="status-row"><span class="status-label">运行时间</span><span id="dev-uptime" class="status-value">-</span></div>
+</div>
+
+<!-- WiFi设置 -->
+<div class="section">
+<h2><span class="icon">📶</span>WiFi设置</h2>
+<label>WiFi 名称 (SSID)</label>
+<input type="text" id="wifi-ssid" placeholder="例如: MyHomeWiFi">
+<label>WiFi 密码</label>
+<input type="password" id="wifi-pass" placeholder="输入WiFi密码">
+</div>
+
+<!-- 代理服务器 -->
+<div class="section">
+<h2><span class="icon">🌐</span>代理服务器</h2>
+<label>Agent 服务器地址</label>
+<input type="text" id="agent-url" placeholder="http://192.168.1.11:8080/v1">
+<button class="btn btn-test" onclick="testConnection('agent')">测试连接</button>
+<div id="test-agent" class="test-result"></div>
+</div>
+
+<!-- ASR语音识别 -->
+<div class="section">
+<h2><span class="icon">🎙️</span>ASR语音识别</h2>
+<label>识别引擎</label>
+<select id="asr-engine" onchange="toggleASR()">
+<option value="mimo">小米 mimo-v2-omni</option>
+<option value="funasr">小智 FunASR</option>
+<option value="sensevoice">本地 SenseVoice</option>
+</select>
+<div id="asr-mimo" class="field-group">
+<label>服务地址</label>
+<input type="text" id="asr-mimo-url" placeholder="http://192.168.1.11:8080/v1/audio/asr">
+</div>
+<div id="asr-funasr" class="field-group hidden">
+<label>服务地址</label>
+<input type="text" id="asr-funasr-url" placeholder="ws://192.168.1.11:10095">
+</div>
+<div id="asr-sensevoice" class="field-group hidden">
+<label>服务地址</label>
+<input type="text" id="asr-sf-url" placeholder="http://192.168.1.11:8000/asr">
+</div>
+<label>API Key (如需要)</label>
+<input type="text" id="asr-key" placeholder="sk-xxxxxxxx（可留空）">
+<button class="btn btn-test" onclick="testConnection('asr')">测试连接</button>
+<div id="test-asr" class="test-result"></div>
+</div>
+
+<!-- TTS语音合成 -->
+<div class="section">
+<h2><span class="icon">🔊</span>TTS语音合成</h2>
+<label>合成引擎</label>
+<select id="tts-engine" onchange="toggleTTS()">
+<option value="mimo">小米 mimo-v2.5-tts</option>
+<option value="edge">EdgeTTS</option>
+<option value="piper">本地 Piper</option>
+</select>
+<div id="tts-mimo" class="field-group">
+<label>服务地址</label>
+<input type="text" id="tts-mimo-url" placeholder="http://192.168.1.11:8080/v1/audio/tts">
+</div>
+<div id="tts-edge" class="field-group hidden">
+<label>服务地址</label>
+<input type="text" id="tts-edge-url" placeholder="http://192.168.1.11:8080/v1/audio/tts">
+</div>
+<div id="tts-piper" class="field-group hidden">
+<label>服务地址</label>
+<input type="text" id="tts-piper-url" placeholder="http://192.168.1.11:5000/tts">
+</div>
+<label>API Key (如需要)</label>
+<input type="text" id="tts-key" placeholder="sk-xxxxxxxx（可留空）">
+<label>语音模型/角色</label>
+<input type="text" id="tts-model" placeholder="zh-CN-XiaoxiaoNeural">
+<button class="btn btn-test" onclick="testConnection('tts')">测试连接</button>
+<div id="test-tts" class="test-result"></div>
+</div>
+
+<!-- 保存按钮 -->
+<button class="btn btn-primary" onclick="saveConfig()">💾 保存配置</button>
+
+<div class="footer">小希 XiaoXi · ESP32-S3 语音助手</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function showMsg(text, ok) {
+  const m = $('msg');
+  m.textContent = text;
+  m.className = 'msg ' + (ok ? 'success' : 'error');
+  setTimeout(() => { m.className = 'msg'; }, 3000);
+}
+
+function toggleASR() {
+  const e = $('asr-engine').value;
+  ['asr-mimo','asr-funasr','asr-sensevoice'].forEach(id => {
+    $(id).className = 'field-group' + (id === 'asr-'+e ? '' : ' hidden');
+  });
+}
+
+function toggleTTS() {
+  const e = $('tts-engine').value;
+  ['tts-mimo','tts-edge','tts-piper'].forEach(id => {
+    $(id).className = 'field-group' + (id === 'tts-'+e ? '' : ' hidden');
+  });
+}
+
+function testConnection(type) {
+  const el = $('test-' + type);
+  el.textContent = '测试中...';
+  el.className = 'test-result';
+  let url = '';
+  if (type === 'agent') url = $('agent-url').value;
+  else if (type === 'asr') {
+    const e = $('asr-engine').value;
+    url = $('asr-' + (e === 'sensevoice' ? 'sf' : e) + '-url').value;
+  } else if (type === 'tts') {
+    const e = $('tts-engine').value;
+    url = $('tts-' + e + '-url').value;
+  }
+  if (!url) { el.textContent = '请先填写地址'; el.className = 'test-result test-fail'; return; }
+  fetch('/api/test', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type,url})})
+    .then(r => r.json()).then(d => {
+      if (d.ok) { el.textContent = '✓ 连接成功' + (d.latency ? ' ('+d.latency+'ms)' : ''); el.className = 'test-result test-ok'; }
+      else { el.textContent = '✗ ' + (d.error || '连接失败'); el.className = 'test-result test-fail'; }
+    }).catch(() => { el.textContent = '✗ 请求失败'; el.className = 'test-result test-fail'; });
+}
+
+function loadConfig() {
+  fetch('/api/config').then(r => r.json()).then(d => {
+    if (d.wifi_ssid) $('wifi-ssid').value = d.wifi_ssid;
+    if (d.wifi_pass) $('wifi-pass').value = d.wifi_pass;
+    if (d.agent_url) $('agent-url').value = d.agent_url;
+    if (d.asr_engine) { $('asr-engine').value = d.asr_engine; toggleASR(); }
+    if (d.asr_mimo_url) $('asr-mimo-url').value = d.asr_mimo_url;
+    if (d.asr_funasr_url) $('asr-funasr-url').value = d.asr_funasr_url;
+    if (d.asr_sf_url) $('asr-sf-url').value = d.asr_sf_url;
+    if (d.asr_key) $('asr-key').value = d.asr_key;
+    if (d.tts_engine) { $('tts-engine').value = d.tts_engine; toggleTTS(); }
+    if (d.tts_mimo_url) $('tts-mimo-url').value = d.tts_mimo_url;
+    if (d.tts_edge_url) $('tts-edge-url').value = d.tts_edge_url;
+    if (d.tts_piper_url) $('tts-piper-url').value = d.tts_piper_url;
+    if (d.tts_key) $('tts-key').value = d.tts_key;
+    if (d.tts_model) $('tts-model').value = d.tts_model;
+  }).catch(() => {});
+}
+
+function loadStatus() {
+  fetch('/api/status').then(r => r.json()).then(d => {
+    $('dev-status').textContent = d.connected ? '已连接' : '未连接';
+    $('dev-status').className = 'status-value ' + (d.connected ? 'status-connected' : 'status-disconnected');
+    $('dev-ssid').textContent = d.ssid || '-';
+    $('dev-ip').textContent = d.ip || '-';
+    $('dev-uptime').textContent = d.uptime || '-';
+  }).catch(() => {
+    $('dev-status').textContent = '离线';
+    $('dev-status').className = 'status-value status-disconnected';
+  });
+}
+
+function saveConfig() {
+  const cfg = {
+    wifi_ssid: $('wifi-ssid').value,
+    wifi_pass: $('wifi-pass').value,
+    agent_url: $('agent-url').value,
+    asr_engine: $('asr-engine').value,
+    asr_mimo_url: $('asr-mimo-url').value,
+    asr_funasr_url: $('asr-funasr-url').value,
+    asr_sf_url: $('asr-sf-url').value,
+    asr_key: $('asr-key').value,
+    tts_engine: $('tts-engine').value,
+    tts_mimo_url: $('tts-mimo-url').value,
+    tts_edge_url: $('tts-edge-url').value,
+    tts_piper_url: $('tts-piper-url').value,
+    tts_key: $('tts-key').value,
+    tts_model: $('tts-model').value
+  };
+  fetch('/api/config', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)})
+    .then(r => r.json()).then(d => {
+      if (d.ok) { showMsg('✅ 配置已保存，设备将重启...', true); setTimeout(() => loadStatus(), 3000); }
+      else showMsg('❌ 保存失败: ' + (d.error || '未知错误'), false);
+    }).catch(() => showMsg('❌ 保存失败，请检查连接', false));
+}
+
+loadConfig();
+loadStatus();
+setInterval(loadStatus, 10000);
+</script>
+</body>
+</html>

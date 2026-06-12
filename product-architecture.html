@@ -1,338 +1,1101 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>小希项目 (hermes-xiaoxi) · 系统架构</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #0a0e1a; min-height: 100vh; color: #e2e8f0; padding: 2rem; }
-    .container { max-width: 1400px; margin: 0 auto; }
-    .header { margin-bottom: 2rem; }
-    .header h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem; }
-    .header h1 span { color: #22d3ee; }
-    .header p { color: #64748b; font-size: 0.9rem; }
-    .section { margin-bottom: 2.5rem; }
-    .section h2 { font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem; }
-    .diagram-box { background: rgba(15, 23, 42, 0.5); border: 1px solid #1e293b; border-radius: 1rem; padding: 1.5rem; overflow-x: auto; }
-
-    .versions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.2rem; margin-bottom: 2rem; }
-    .vcard { background: rgba(15, 23, 42, 0.6); border: 1px solid #1e293b; border-radius: 1rem; padding: 1.2rem; position: relative; overflow: hidden; }
-    .vcard::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
-    .v1::before { background: #22d3ee; } .v2::before { background: #f472b6; } .v3::before { background: #a78bfa; } .v4::before { background: #fbbf24; }
-    .vcard h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.15rem; }
-    .vcard .tag { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.6rem; font-weight: 600; margin-bottom: 0.6rem; }
-    .v1 .tag { background: rgba(34,211,238,0.15); color: #22d3ee; }
-    .v2 .tag { background: rgba(244,114,182,0.15); color: #f472b6; }
-    .v3 .tag { background: rgba(167,139,250,0.15); color: #a78bfa; }
-    .v4 .tag { background: rgba(251,191,36,0.15); color: #fbbf24; }
-    .vcard .s { font-size: 0.68rem; color: #94a3b8; margin-bottom: 0.2rem; }
-    .vcard .s strong { color: #e2e8f0; }
-    .vcard .p { font-size: 1.2rem; font-weight: 700; margin: 0.4rem 0 0.1rem; }
-    .v1 .p { color: #22d3ee; } .v2 .p { color: #f472b6; } .v3 .p { color: #a78bfa; } .v4 .p { color: #fbbf24; }
-    .vcard .c { font-size: 0.65rem; color: #475569; }
-    .fr { display: flex; align-items: center; gap: 0.3rem; font-size: 0.65rem; color: #94a3b8; margin-bottom: 0.15rem; }
-    .fr .y { color: #34d399; } .fr .n { color: #475569; }
-    .feat { margin-top: 0.5rem; }
-
-    .tbl { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
-    .tbl th, .tbl td { padding: 0.5rem 0.8rem; border-bottom: 1px solid #1e293b; text-align: left; }
-    .tbl th { color: #94a3b8; font-weight: 500; font-size: 0.68rem; text-transform: uppercase; }
-    .tbl td { color: #e2e8f0; }
-    .tbl .hl { color: #22d3ee; font-weight: 600; }
-    .footer { text-align: center; padding: 1.5rem; color: #475569; font-size: 0.75rem; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小希 — 双Agent具身智能语音助手</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(0, 255, 136, 0.1) 0%, transparent 50%);
+            animation: rotate 20s linear infinite;
+        }
+        
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .hero h1 {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(90deg, #00ff88, #00d4ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .hero p {
+            font-size: 1.5rem;
+            color: #888;
+            margin-bottom: 2rem;
+        }
+        
+        .hero .subtitle {
+            font-size: 1.2rem;
+            color: #00ff88;
+            margin-bottom: 3rem;
+        }
+        
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            padding: 1rem 0;
+        }
+        
+        nav .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        nav .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #00ff88;
+        }
+        
+        nav ul {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+        }
+        
+        nav ul li a {
+            color: #e0e0e0;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        nav ul li a:hover {
+            color: #00ff88;
+        }
+        
+        /* Sections */
+        section {
+            padding: 100px 0;
+        }
+        
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+            color: #fff;
+        }
+        
+        .section-title span {
+            color: #00ff88;
+        }
+        
+        /* Architecture Section */
+        .architecture {
+            background: linear-gradient(180deg, #0a0a0a 0%, #111 100%);
+        }
+        
+        .arch-diagram {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 2rem;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+            overflow-x: auto;
+            white-space: pre;
+            color: #00ff88;
+        }
+        
+        .arch-description {
+            margin-top: 2rem;
+            text-align: center;
+            color: #888;
+            font-size: 1.1rem;
+        }
+        
+        .arch-description strong {
+            color: #00ff88;
+        }
+        
+        /* Tech Stack */
+        .tech-stack {
+            background: #0a0a0a;
+        }
+        
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+        
+        .tech-card {
+            background: linear-gradient(135deg, #1a1a1a 0%, #222 100%);
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 2rem;
+            transition: transform 0.3s, border-color 0.3s;
+        }
+        
+        .tech-card:hover {
+            transform: translateY(-5px);
+            border-color: #00ff88;
+        }
+        
+        .tech-card h3 {
+            color: #00ff88;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+        
+        .tech-card ul {
+            list-style: none;
+            color: #888;
+        }
+        
+        .tech-card ul li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #222;
+        }
+        
+        .tech-card ul li:last-child {
+            border-bottom: none;
+        }
+        
+        .tech-card ul li::before {
+            content: '→ ';
+            color: #00ff88;
+        }
+        
+        /* Roadmap */
+        .roadmap {
+            background: linear-gradient(180deg, #0a0a0a 0%, #111 100%);
+        }
+        
+        .roadmap-container {
+            position: relative;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .roadmap-line {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(180deg, #00ff88, #00d4ff, #8b5cf6);
+            transform: translateX(-50%);
+        }
+        
+        .phase {
+            position: relative;
+            margin-bottom: 4rem;
+            display: flex;
+            align-items: flex-start;
+        }
+        
+        .phase:nth-child(odd) {
+            flex-direction: row;
+        }
+        
+        .phase:nth-child(even) {
+            flex-direction: row-reverse;
+        }
+        
+        .phase-content {
+            width: 45%;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 2rem;
+        }
+        
+        .phase:nth-child(odd) .phase-content {
+            margin-right: 5%;
+        }
+        
+        .phase:nth-child(even) .phase-content {
+            margin-left: 5%;
+        }
+        
+        .phase-dot {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            height: 20px;
+            background: #00ff88;
+            border-radius: 50%;
+            border: 3px solid #0a0a0a;
+            z-index: 1;
+        }
+        
+        .phase.completed .phase-dot {
+            background: #00ff88;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+        
+        .phase.in-progress .phase-dot {
+            background: #00d4ff;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+            animation: pulse 2s infinite;
+        }
+        
+        .phase.planned .phase-dot {
+            background: #8b5cf6;
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: translateX(-50%) scale(1); }
+            50% { transform: translateX(-50%) scale(1.2); }
+        }
+        
+        .phase-content h3 {
+            color: #00ff88;
+            margin-bottom: 0.5rem;
+            font-size: 1.3rem;
+        }
+        
+        .phase-content .status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+        }
+        
+        .phase.completed .status {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+        }
+        
+        .phase.in-progress .status {
+            background: rgba(0, 212, 255, 0.2);
+            color: #00d4ff;
+        }
+        
+        .phase.planned .status {
+            background: rgba(139, 92, 246, 0.2);
+            color: #8b5cf6;
+        }
+        
+        .phase-content p {
+            color: #888;
+            margin-bottom: 1rem;
+        }
+        
+        .phase-content ul {
+            list-style: none;
+            color: #666;
+        }
+        
+        .phase-content ul li {
+            padding: 0.25rem 0;
+        }
+        
+        .phase-content ul li::before {
+            content: '• ';
+            color: #00ff88;
+        }
+        
+        /* Product Line */
+        .products {
+            background: #0a0a0a;
+        }
+        
+        .product-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #1a1a1a;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .product-table th,
+        .product-table td {
+            padding: 1.5rem;
+            text-align: center;
+            border-bottom: 1px solid #333;
+        }
+        
+        .product-table th {
+            background: linear-gradient(135deg, #1a1a1a 0%, #222 100%);
+            color: #00ff88;
+            font-weight: 600;
+        }
+        
+        .product-table td {
+            color: #888;
+        }
+        
+        .product-table tr:hover td {
+            background: rgba(0, 255, 136, 0.05);
+        }
+        
+        .product-table .product-name {
+            color: #fff;
+            font-weight: 600;
+        }
+        
+        .product-table .check {
+            color: #00ff88;
+        }
+        
+        .product-table .cross {
+            color: #666;
+        }
+        
+        /* Quick Start */
+        .quick-start {
+            background: linear-gradient(180deg, #0a0a0a 0%, #111 100%);
+        }
+        
+        .steps {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .step {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+        
+        .step-number {
+            position: absolute;
+            top: -15px;
+            left: 2rem;
+            background: linear-gradient(135deg, #00ff88, #00d4ff);
+            color: #0a0a0a;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        .step h3 {
+            color: #fff;
+            margin-bottom: 1rem;
+            margin-top: 0.5rem;
+        }
+        
+        .step p {
+            color: #888;
+            margin-bottom: 1rem;
+        }
+        
+        .code-block {
+            background: #0d0d0d;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 1.5rem;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            position: relative;
+        }
+        
+        .code-block::before {
+            content: '$ ';
+            color: #00ff88;
+        }
+        
+        .code-block code {
+            color: #00d4ff;
+        }
+        
+        .code-block .comment {
+            color: #666;
+        }
+        
+        /* API Section */
+        .api-section {
+            background: #0a0a0a;
+        }
+        
+        .api-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .api-card {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            transition: transform 0.3s, border-color 0.3s;
+        }
+        
+        .api-card:hover {
+            transform: translateY(-5px);
+            border-color: #00d4ff;
+        }
+        
+        .api-card .method {
+            display: inline-block;
+            background: rgba(0, 212, 255, 0.2);
+            color: #00d4ff;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-family: monospace;
+            margin-bottom: 1rem;
+        }
+        
+        .api-card h4 {
+            color: #fff;
+            margin-bottom: 0.5rem;
+        }
+        
+        .api-card p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        /* Footer */
+        footer {
+            background: #111;
+            padding: 3rem 0;
+            text-align: center;
+            border-top: 1px solid #333;
+        }
+        
+        footer p {
+            color: #666;
+        }
+        
+        footer a {
+            color: #00ff88;
+            text-decoration: none;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .hero p {
+                font-size: 1.2rem;
+            }
+            
+            nav ul {
+                display: none;
+            }
+            
+            .roadmap-line {
+                left: 20px;
+            }
+            
+            .phase {
+                flex-direction: column !important;
+                padding-left: 50px;
+            }
+            
+            .phase-content {
+                width: 100% !important;
+                margin: 0 !important;
+            }
+            
+            .phase-dot {
+                left: 20px;
+            }
+            
+            .product-table {
+                font-size: 0.9rem;
+            }
+            
+            .product-table th,
+            .product-table td {
+                padding: 1rem 0.5rem;
+            }
+        }
+        
+        /* Animations */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s, transform 0.6s;
+        }
+        
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        /* Stats */
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 4rem;
+            margin-top: 3rem;
+        }
+        
+        .stat {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #00ff88;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        /* Wake word highlight */
+        .wake-word {
+            display: inline-block;
+            background: linear-gradient(135deg, rgba(0, 255, 136, 0.2), rgba(0, 212, 255, 0.2));
+            padding: 0.5rem 1.5rem;
+            border-radius: 30px;
+            border: 1px solid #00ff88;
+            font-size: 1.3rem;
+            color: #00ff88;
+            margin: 1rem 0;
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>🖊️ <span>小希</span> · 系统架构 v3.0</h1>
-      <p>ESP32设备端 + Agent后端 · 固件编译一次不用动 · 改地址换Agent · 2026</p>
-    </div>
-
-    <!-- Core Architecture Diagram -->
-    <div class="section">
-      <h2>🏗️ 核心架构：ESP32设备端 + Agent后端</h2>
-      <div class="diagram-box">
-        <svg viewBox="0 0 1300 700">
-          <defs>
-            <marker id="a1" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#22d3ee"/></marker>
-            <marker id="a2" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#34d399"/></marker>
-            <marker id="a3" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#fbbf24"/></marker>
-            <marker id="a4" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#a78bfa"/></marker>
-            <pattern id="gg" width="25" height="25" patternUnits="userSpaceOnUse"><path d="M 25 0 L 0 0 0 25" fill="none" stroke="#1e293b" stroke-width="0.3"/></pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#gg)"/>
-
-          <!-- ========== ESP32 Device (Left) ========== -->
-          <rect x="15" y="15" width="380" height="670" rx="12" fill="rgba(8,51,68,0.15)" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="6,3"/>
-          <text x="27" y="40" fill="#22d3ee" font-size="13" font-weight="700">ESP32 设备端</text>
-          <text x="27" y="56" fill="#64748b" font-size="8">固件编译一次 · 长期使用 · 所有设置通过Web页面修改</text>
-
-          <!-- Audio Input -->
-          <rect x="35" y="75" width="160" height="50" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
-          <text x="115" y="96" fill="white" font-size="10" font-weight="600" text-anchor="middle">🎤 麦克风</text>
-          <text x="115" y="112" fill="#94a3b8" font-size="7" text-anchor="middle">I2S · INMP441 · 16kHz PCM</text>
-
-          <!-- Audio Output -->
-          <rect x="210" y="75" width="160" height="50" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
-          <text x="290" y="96" fill="white" font-size="10" font-weight="600" text-anchor="middle">🔈 喇叭</text>
-          <text x="290" y="112" fill="#94a3b8" font-size="7" text-anchor="middle">I2S · MAX98357 · Opus解码播放</text>
-
-          <!-- Wake/Trigger -->
-          <rect x="35" y="140" width="335" height="45" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
-          <text x="202" y="160" fill="white" font-size="10" font-weight="600" text-anchor="middle">🔔 触发方式</text>
-          <text x="202" y="176" fill="#94a3b8" font-size="7" text-anchor="middle">笔形版：按钮按住说话 · 桌面版：语音唤醒"你好小鑫" + 按钮</text>
-
-          <!-- Audio Codec -->
-          <rect x="35" y="200" width="335" height="50" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
-          <text x="202" y="220" fill="white" font-size="10" font-weight="600" text-anchor="middle">🔊 音频编解码</text>
-          <text x="202" y="236" fill="#94a3b8" font-size="7" text-anchor="middle">Opus 编码(上行) + Opus 解码(下行) · VAD静音检测 · AEC回声消除(桌面版)</text>
-
-          <!-- WiFi -->
-          <rect x="35" y="265" width="160" height="55" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
-          <text x="115" y="286" fill="white" font-size="10" font-weight="600" text-anchor="middle">📶 WiFi管理</text>
-          <text x="115" y="300" fill="#94a3b8" font-size="7" text-anchor="middle">自动连接家里WiFi</text>
-          <text x="115" y="312" fill="#94a3b8" font-size="7" text-anchor="middle">搜不到→连手机热点</text>
-
-          <!-- WebSocket -->
-          <rect x="210" y="265" width="160" height="55" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
-          <text x="290" y="286" fill="white" font-size="10" font-weight="600" text-anchor="middle">📡 WebSocket</text>
-          <text x="290" y="300" fill="#94a3b8" font-size="7" text-anchor="middle">连接Agent后端</text>
-          <text x="290" y="312" fill="#94a3b8" font-size="7" text-anchor="middle">收发Opus音频+JSON控制</text>
-
-          <!-- Web Config -->
-          <rect x="35" y="335" width="335" height="100" rx="6" fill="rgba(34,211,238,0.1)" stroke="#22d3ee" stroke-width="2"/>
-          <text x="202" y="355" fill="#22d3ee" font-size="11" font-weight="700" text-anchor="middle">⚙️ Web配置页面（ESP32上运行）</text>
-          <text x="202" y="375" fill="#94a3b8" font-size="8" text-anchor="middle">手机连AP热点 → 浏览器 192.168.4.1 → 修改所有设置</text>
-          <text x="202" y="392" fill="white" font-size="8" text-anchor="middle">· Agent后端地址（改地址=换Agent）</text>
-          <text x="202" y="406" fill="white" font-size="8" text-anchor="middle">· WiFi配置 · 音量 · 语言 · 设备名称 · 固件升级</text>
-          <text x="202" y="424" fill="#34d399" font-size="7" font-weight="600" text-anchor="middle">⚡ 不用改固件，不用重编译，网页改完秒生效</text>
-
-          <!-- Hardware -->
-          <rect x="35" y="450" width="160" height="45" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
-          <text x="115" y="470" fill="white" font-size="9" font-weight="600" text-anchor="middle">🔘 按钮 · LED</text>
-          <text x="115" y="486" fill="#94a3b8" font-size="7" text-anchor="middle">单击/长按/双击 · 状态指示灯</text>
-
-          <rect x="210" y="450" width="160" height="45" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
-          <text x="290" y="470" fill="white" font-size="9" font-weight="600" text-anchor="middle">🖥️ 屏幕（桌面版）</text>
-          <text x="290" y="486" fill="#94a3b8" font-size="7" text-anchor="middle">OLED · 对话文字 · 状态 · 时间</text>
-
-          <!-- Camera -->
-          <rect x="35" y="510" width="335" height="40" rx="6" fill="rgba(244,114,182,0.1)" stroke="#f472b6" stroke-width="1"/>
-          <text x="202" y="535" fill="#f472b6" font-size="9" font-weight="600" text-anchor="middle">📷 摄像头 OV2640（视觉版）· JPEG编码 → 发送到Agent后端做多模态分析</text>
-
-          <!-- OTA -->
-          <rect x="35" y="565" width="335" height="35" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
-          <text x="202" y="587" fill="#94a3b8" font-size="8" text-anchor="middle">🔄 OTA固件升级 · 通过Web页面上传 · 不需要USB线</text>
-
-          <!-- Power -->
-          <rect x="35" y="615" width="160" height="35" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
-          <text x="115" y="637" fill="#94a3b8" font-size="8" text-anchor="middle">🔋 笔形版：锂电池+USB-C</text>
-
-          <rect x="210" y="615" width="160" height="35" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
-          <text x="290" y="637" fill="#94a3b8" font-size="8" text-anchor="middle">🔌 桌面版：USB-C持续供电</text>
-
-          <!-- Internal arrows -->
-          <line x1="115" y1="125" x2="115" y2="138" stroke="#22d3ee" stroke-width="1" marker-end="url(#a1)"/>
-          <line x1="202" y1="185" x2="202" y2="198" stroke="#22d3ee" stroke-width="1" marker-end="url(#a1)"/>
-          <line x1="202" y1="250" x2="202" y2="263" stroke="#22d3ee" stroke-width="1" marker-end="url(#a1)"/>
-
-          <!-- ========== WiFi/Network (Center) ========== -->
-          <rect x="430" y="260" width="140" height="120" rx="10" fill="rgba(30,41,59,0.6)" stroke="#94a3b8" stroke-width="1.5"/>
-          <text x="500" y="290" fill="white" font-size="11" font-weight="700" text-anchor="middle">📶 网络层</text>
-          <text x="500" y="310" fill="#94a3b8" font-size="8" text-anchor="middle">WiFi / 手机热点</text>
-          <text x="500" y="328" fill="#94a3b8" font-size="8" text-anchor="middle">WebSocket / HTTP</text>
-          <text x="500" y="350" fill="#64748b" font-size="7" text-anchor="middle">在家→家WiFi→局域网</text>
-          <text x="500" y="365" fill="#64748b" font-size="7" text-anchor="middle">在外→手机热点→互联网</text>
-
-          <!-- Arrow: ESP32 → Network -->
-          <line x1="370" y1="385" x2="428" y2="340" stroke="#22d3ee" stroke-width="2" marker-end="url(#a1)"/>
-          <text x="390" y="355" fill="#22d3ee" font-size="7" text-anchor="middle">音频上行</text>
-
-          <!-- Arrow: Network → ESP32 -->
-          <line x1="428" y1="320" x2="370" y2="370" stroke="#34d399" stroke-width="2" marker-end="url(#a2)"/>
-          <text x="390" y="340" fill="#34d399" font-size="7" text-anchor="middle">音频下行</text>
-
-          <!-- ========== Agent Backend (Right) ========== -->
-          <rect x="610" y="15" width="670" height="670" rx="12" fill="rgba(6,78,59,0.1)" stroke="#34d399" stroke-width="1.5" stroke-dasharray="6,3"/>
-          <text x="622" y="40" fill="#34d399" font-size="13" font-weight="700">Agent 后端（大脑）</text>
-          <text x="622" y="56" fill="#64748b" font-size="8">所有智能都在这里 · 可以是Hermes、小智官方、自建后端、任何兼容Agent</text>
-
-          <!-- ASR -->
-          <rect x="630" y="75" width="200" height="65" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
-          <text x="730" y="96" fill="white" font-size="11" font-weight="600" text-anchor="middle">🗣️ ASR 语音识别</text>
-          <text x="730" y="114" fill="#94a3b8" font-size="8" text-anchor="middle">Whisper · DeepSeek · 阿里Paraformer</text>
-          <text x="730" y="128" fill="#fbbf24" font-size="7" text-anchor="middle">Opus音频 → 文字</text>
-
-          <!-- LLM -->
-          <rect x="850" y="75" width="210" height="85" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
-          <text x="955" y="96" fill="white" font-size="11" font-weight="600" text-anchor="middle">🧠 LLM 大模型推理</text>
-          <text x="955" y="114" fill="#94a3b8" font-size="8" text-anchor="middle">DeepSeek · 千问 · Claude · GPT</text>
-          <text x="955" y="128" fill="#94a3b8" font-size="8" text-anchor="middle">Gemini · 本地Ollama</text>
-          <text x="955" y="146" fill="#34d399" font-size="7" text-anchor="middle">文字理解 → 文字回复（流式）</text>
-
-          <!-- TTS -->
-          <rect x="630" y="160" width="200" height="65" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
-          <text x="730" y="181" fill="white" font-size="11" font-weight="600" text-anchor="middle">🎵 TTS 语音合成</text>
-          <text x="730" y="199" fill="#94a3b8" font-size="8" text-anchor="middle">OpenAI TTS · Edge TTS · GPT-SoVITS</text>
-          <text x="730" y="213" fill="#fbbf24" font-size="7" text-anchor="middle">文字 → Opus音频</text>
-
-          <!-- Context -->
-          <rect x="850" y="180" width="210" height="45" rx="6" fill="rgba(167,139,250,0.15)" stroke="#a78bfa" stroke-width="1.5"/>
-          <text x="955" y="200" fill="white" font-size="10" font-weight="600" text-anchor="middle">📋 上下文管理</text>
-          <text x="955" y="216" fill="#94a3b8" font-size="7" text-anchor="middle">多轮对话历史 · 人设Prompt · 记忆</text>
-
-          <!-- Vision -->
-          <rect x="1080" y="75" width="180" height="50" rx="6" fill="rgba(244,114,182,0.15)" stroke="#f472b6" stroke-width="1"/>
-          <text x="1170" y="96" fill="white" font-size="10" font-weight="600" text-anchor="middle">👁️ 视觉理解</text>
-          <text x="1170" y="114" fill="#94a3b8" font-size="7" text-anchor="middle">GPT-4o-mini · 千问VL（视觉版用）</text>
-
-          <!-- Tools -->
-          <rect x="630" y="250" width="630" height="120" rx="8" fill="rgba(167,139,250,0.1)" stroke="#a78bfa" stroke-width="1.5"/>
-          <text x="945" y="275" fill="#a78bfa" font-size="12" font-weight="700" text-anchor="middle">🛠️ 工具调用 (Function Calling / MCP)</text>
-          <text x="730" y="300" fill="#94a3b8" font-size="9" text-anchor="middle">🌤️ 天气查询</text>
-          <text x="730" y="318" fill="#94a3b8" font-size="9" text-anchor="middle">🔍 搜索引擎</text>
-          <text x="730" y="336" fill="#94a3b8" font-size="9" text-anchor="middle">🎵 音乐播放</text>
-          <text x="945" y="300" fill="#94a3b8" font-size="9" text-anchor="middle">🏠 智能家居</text>
-          <text x="945" y="318" fill="#94a3b8" font-size="9" text-anchor="middle">📅 日程管理</text>
-          <text x="945" y="336" fill="#94a3b8" font-size="9" text-anchor="middle">📧 邮件收发</text>
-          <text x="1160" y="300" fill="#94a3b8" font-size="9" text-anchor="middle">💡 Home Assistant</text>
-          <text x="1160" y="318" fill="#94a3b8" font-size="9" text-anchor="middle">🔧 自定义MCP工具</text>
-          <text x="1160" y="336" fill="#94a3b8" font-size="9" text-anchor="middle">📱 米家/涂鸦</text>
-          <text x="945" y="358" fill="#a78bfa" font-size="7" text-anchor="middle">工具在后端注册，ESP32完全不知道 · 加新工具=后端加，ESP32不用动</text>
-
-          <!-- Backend Options -->
-          <rect x="630" y="395" width="630" height="100" rx="8" fill="rgba(30,41,59,0.5)" stroke="#94a3b8" stroke-width="1"/>
-          <text x="945" y="420" fill="white" font-size="11" font-weight="600" text-anchor="middle">🔄 可选后端（改ESP32配置页面的地址就能切换）</text>
-          <text x="730" y="445" fill="#22d3ee" font-size="9" font-weight="600" text-anchor="middle">Hermes（本地电脑）</text>
-          <text x="730" y="462" fill="#64748b" font-size="7" text-anchor="middle">功能最强 · 全工具支持</text>
-          <text x="945" y="445" fill="#a78bfa" font-size="9" font-weight="600" text-anchor="middle">其他兼容Agent</text>
-          <text x="945" y="462" fill="#64748b" font-size="7" text-anchor="middle">出门在外也能用</text>
-          <text x="1160" y="445" fill="#fbbf24" font-size="9" font-weight="600" text-anchor="middle">其他Agent平台</text>
-          <text x="1160" y="462" fill="#64748b" font-size="7" text-anchor="middle">任何兼容协议的后端</text>
-          <text x="945" y="488" fill="#34d399" font-size="8" font-weight="600" text-anchor="middle">⚡ ESP32只认地址，不知道连的是谁 · 换后端=改个地址，不用动固件</text>
-
-          <!-- Web Admin -->
-          <rect x="630" y="520" width="630" height="55" rx="6" fill="rgba(34,211,238,0.08)" stroke="#22d3ee" stroke-width="1"/>
-          <text x="945" y="545" fill="#22d3ee" font-size="10" font-weight="600" text-anchor="middle">🌐 Agent管理后台</text>
-          <text x="945" y="565" fill="#94a3b8" font-size="8" text-anchor="middle">人设Prompt · API Key · 工具开关 · TTS音色 · 对话历史查看 · 设备管理</text>
-
-          <!-- Data Flow Labels -->
-          <rect x="630" y="600" width="630" height="70" rx="6" fill="rgba(30,41,59,0.4)" stroke="#94a3b8" stroke-width="1"/>
-          <text x="945" y="620" fill="white" font-size="10" font-weight="600" text-anchor="middle">📡 数据流：一次完整对话</text>
-          <text x="945" y="640" fill="#94a3b8" font-size="8" text-anchor="middle">① 用户按按钮/唤醒 → ② ESP32录音(Opus) → ③ 发到Agent后端 → ④ ASR识别→LLM推理→TTS合成</text>
-          <text x="945" y="658" fill="#94a3b8" font-size="8" text-anchor="middle">→ ⑤ Agent返回Opus音频 → ⑥ ESP32解码播放到喇叭 → ⑦ 屏幕同步显示文字</text>
-
-          <!-- Arrow: Network → Agent -->
-          <line x1="570" y1="320" x2="628" y2="250" stroke="#34d399" stroke-width="2" marker-end="url(#a2)"/>
-          <text x="590" y="270" fill="#34d399" font-size="7" text-anchor="middle">音频+控制</text>
-          <line x1="628" y1="230" x2="570" y2="300" stroke="#fbbf24" stroke-width="2" marker-end="url(#a3)"/>
-          <text x="590" y="260" fill="#fbbf24" font-size="7" text-anchor="middle">回复音频</text>
-
-          <!-- ASR→LLM→TTS flow -->
-          <line x1="830" y1="108" x2="848" y2="108" stroke="#34d399" stroke-width="1.5" marker-end="url(#a2)"/>
-          <line x1="955" y1="160" x2="955" y2="178" stroke="#34d399" stroke-width="1"/>
-          <path d="M 955 178 L 955 195 Q 955 200 940 200 L 832 200 Q 830 200 830 198 L 830 195" fill="none" stroke="#34d399" stroke-width="1" marker-end="url(#a2)"/>
-          <line x1="955" y1="160" x2="955" y2="178" stroke="#a78bfa" stroke-width="1" marker-end="url(#a4)"/>
-        </svg>
-      </div>
-    </div>
-
-    <!-- Version Cards -->
-    <div class="section">
-      <h2>📦 四版本产品线</h2>
-      <div class="versions">
-        <div class="vcard v1">
-          <h3>🖊️ 笔形基础版</h3>
-          <div class="tag">XiaoXi Pen · C3</div>
-          <div class="s">芯片：<strong>ESP32-C3</strong> (5×5mm)</div>
-          <div class="s">触发：<strong>按钮</strong>（笔尾按住）</div>
-          <div class="s">Web配置：<strong>✅</strong> AP热点</div>
-          <div class="p">¥99 ~ ¥149</div>
-          <div class="c">硬件成本 ~29元</div>
-          <div class="feat">
-            <div class="fr"><span class="y">✓</span>语音对话</div>
-            <div class="fr"><span class="y">✓</span>手机热点联网</div>
-            <div class="fr"><span class="y">✓</span>Web配置页面</div>
-            <div class="fr"><span class="n">✗</span>摄像头</div>
-            <div class="fr"><span class="n">✗</span>屏幕</div>
-          </div>
+    <nav>
+        <div class="container">
+            <div class="logo">小希</div>
+            <ul>
+                <li><a href="#architecture">架构</a></li>
+                <li><a href="#tech">技术栈</a></li>
+                <li><a href="#roadmap">路线图</a></li>
+                <li><a href="#products">产品线</a></li>
+                <li><a href="#quickstart">快速开始</a></li>
+            </ul>
         </div>
-        <div class="vcard v2">
-          <h3>📸 笔形视觉版</h3>
-          <div class="tag">XiaoXi Pen Eye · CAM</div>
-          <div class="s">芯片：<strong>ESP32-CAM</strong> (S3+OV2640)</div>
-          <div class="s">触发：<strong>按钮</strong>（短按说/长按拍）</div>
-          <div class="s">Web配置：<strong>✅</strong> AP热点</div>
-          <div class="p">¥199 ~ ¥299</div>
-          <div class="c">硬件成本 ~55元</div>
-          <div class="feat">
-            <div class="fr"><span class="y">✓</span>语音对话</div>
-            <div class="fr"><span class="y">✓</span>拍照理解</div>
-            <div class="fr"><span class="y">✓</span>Web配置页面</div>
-            <div class="fr"><span class="n">✗</span>屏幕</div>
-            <div class="fr"><span class="n">✗</span>语音唤醒</div>
-          </div>
-        </div>
-        <div class="vcard v3">
-          <h3>🖥️ 桌面标准版</h3>
-          <div class="tag">XiaoXi Desk · S3</div>
-          <div class="s">芯片：<strong>ESP32-S3</strong></div>
-          <div class="s">触发：<strong>"你好小鑫"</strong> + 按钮</div>
-          <div class="s">Web配置：<strong>✅</strong> AP热点</div>
-          <div class="p">¥199 ~ ¥249</div>
-          <div class="c">硬件成本 ~55元</div>
-          <div class="feat">
-            <div class="fr"><span class="y">✓</span>语音唤醒+打断</div>
-            <div class="fr"><span class="y">✓</span>屏幕显示</div>
-            <div class="fr"><span class="y">✓</span>AEC回声消除</div>
-            <div class="fr"><span class="n">✗</span>摄像头</div>
-            <div class="fr"><span class="y">✓</span>Home Assistant</div>
-          </div>
-        </div>
-        <div class="vcard v4">
-          <h3>👁️ 桌面视觉版</h3>
-          <div class="tag">XiaoXi Desk Eye · S3 Mini</div>
-          <div class="s">芯片：<strong>ESP32-S3 Mini</strong> (13×20mm)</div>
-          <div class="s">触发：<strong>"你好小鑫"</strong> + 按钮</div>
-          <div class="s">Web配置：<strong>✅</strong> AP热点</div>
-          <div class="p">¥249 ~ ¥349</div>
-          <div class="c">硬件成本 ~63元</div>
-          <div class="feat">
-            <div class="fr"><span class="y">✓</span>全功能</div>
-            <div class="fr"><span class="y">✓</span>语音+视觉</div>
-            <div class="fr"><span class="y">✓</span>屏幕+摄像头</div>
-            <div class="fr"><span class="y">✓</span>多模态LLM</div>
-            <div class="fr"><span class="y">✓</span>Home Assistant</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    </nav>
 
-    <!-- vs XZhi Comparison -->
-    <div class="section">
-      <h2>⚡ 与小智的核心区别</h2>
-      <div class="diagram-box">
-        <table class="tbl">
-          <thead><tr><th>对比项</th><th>小智（原版）</th><th>小希（我们的方案）</th></tr></thead>
-          <tbody>
-            <tr><td>后端连接</td><td>写死连官方服务器</td><td class="hl">地址可配，随便换</td></tr>
-            <tr><td>改设置</td><td>重编译固件+重刷</td><td class="hl">Web页面改，秒生效</td></tr>
-            <tr><td>换大模型</td><td>改固件</td><td class="hl">后端换，ESP32不知道</td></tr>
-            <tr><td>加工具</td><td>改固件</td><td class="hl">后端加，ESP32不知道</td></tr>
-            <tr><td>Agent能力</td><td>取决于后端</td><td class="hl">接Hermes=全功能Agent</td></tr>
-            <tr><td>离线使用</td><td>需要Docker自建服务器</td><td class="hl">电脑跑Hermes就行</td></tr>
-            <tr><td>配网方式</td><td>需要电脑客户端</td><td class="hl">ESP32自带Web页面</td></tr>
-            <tr><td>硬件成本</td><td>~50元</td><td class="hl">~29元起</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <section class="hero">
+        <div class="hero-content">
+            <h1>小希</h1>
+            <p>双Agent具身智能语音助手</p>
+            <div class="subtitle">ESP-Claw + Hermes · MCP协议协作 · 隐私优先</div>
+            <div class="wake-word">🤖 ESP-Claw底层Agent ↔ MCP协议 ↔ Hermes高级大脑</div>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-number">380</div>
+                    <div class="stat-label">源文件</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number">12.5万</div>
+                    <div class="stat-label">行代码</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number">72</div>
+                    <div class="stat-label">能力模块</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number">5</div>
+                    <div class="stat-label">产品线</div>
+                </div>
+            </div>
+        </div>
+    </section>
 
-    <div class="footer">
-      小希 hermes-xiaoxi · XiaoXi · ESP32设备端 + Agent后端 · 开源硬件 + 开源固件 · MIT License · 2026
-    </div>
-  </div>
+    <section id="architecture" class="architecture">
+        <div class="container">
+            <h2 class="section-title">系统<span>架构</span></h2>
+            <div class="arch-diagram">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Hermes 高级大脑                                      │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐      │
+│  │  ASR 服务    │  │  Chat 服务   │  │  TTS 服务    │  │ Vision 服务  │      │
+│  │  语音识别    │  │  对话推理    │  │  语音合成    │  │  场景理解    │      │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘      │
+│         │                │                │                │               │
+│         └────────────────┴────────────────┴────────────────┘               │
+│                                    │                                        │
+│                           MCP Server（工具调用、推理、记忆）                    │
+└────────────────────────────────────────┬────────────────────────────────────┘
+                                         │
+                              MCP协议 (局域网通信)
+                                         │
+┌────────────────────────────────────────┴────────────────────────────────────┐
+│                           ESP-Claw 底层Agent                                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │  Lua 引擎    │  │  事件路由    │  │  结构化记忆   │  │  IM 集成     │  │
+│  │  硬件控制    │  │  消息分发    │  │  上下文管理   │  │  微信/QQ/飞书│  │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │  MCP Client  │  │  GPIO/舵机   │  │  摄像头/LED  │  │  传感器接口   │  │
+│  │  工具调用    │  │  硬件驱动    │  │  外设控制    │  │  环境感知    │  │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘</div>
+            <div class="arch-description">
+                <strong>桌面版/机器人版：双Agent协作架构</strong> — ESP-Claw负责感知与执行，Hermes负责推理与决策<br>
+                两者通过MCP协议在局域网内实时通信，隐私数据永不离开你的家庭网络
+            </div>
+        </div>
+    </section>
+
+    <!-- 核心卖点：双架构设计 -->
+    <section class="dual-arch" style="background: linear-gradient(135deg, #0a0a0a 0%, #0d1117 50%, #0a0a0a 100%); padding: 80px 0;">
+        <div class="container">
+            <h2 class="section-title">核心<span>卖点</span></h2>
+            <p style="text-align:center; color:#888; font-size:1.2rem; margin-bottom:3rem;">两种架构，各取所长 —— 同一个项目，适配不同场景</p>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:2rem; margin-bottom:3rem;">
+                <!-- 左：双Agent架构 -->
+                <div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border:2px solid #00ff88; border-radius:16px; padding:2.5rem; position:relative;">
+                    <div style="position:absolute; top:-12px; left:2rem; background:#00ff88; color:#0a0a0a; padding:0.3rem 1rem; border-radius:20px; font-weight:bold; font-size:0.85rem;">桌面版 / 机器人版</div>
+                    <h3 style="color:#00ff88; font-size:1.8rem; margin:1rem 0 0.5rem;">🤖 双Agent协作架构</h3>
+                    <p style="color:#888; margin-bottom:1.5rem; font-size:1.05rem;">ESP-Claw（底层Agent）+ Hermes（高级大脑）</p>
+                    <div style="display:flex; flex-direction:column; gap:0.8rem;">
+                        <div style="display:flex; align-items:center; gap:0.8rem;">
+                            <span style="color:#00ff88; font-size:1.2rem;">🦾</span>
+                            <span style="color:#ccc;"><strong style="color:#00ff88;">ESP-Claw</strong> — 感知、执行、本能反应（毫秒级）</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:0.8rem;">
+                            <span style="color:#00d4ff; font-size:1.2rem;">🧠</span>
+                            <span style="color:#ccc;"><strong style="color:#00d4ff;">Hermes</strong> — 推理、规划、记忆、创造（深度思考）</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:0.8rem;">
+                            <span style="color:#8b5cf6; font-size:1.2rem;">🔗</span>
+                            <span style="color:#ccc;"><strong style="color:#8b5cf6;">MCP协议</strong> — 局域网内实时双向通信</span>
+                        </div>
+                    </div>
+                    <div style="margin-top:1.5rem; padding:1rem; background:rgba(0,255,136,0.1); border-radius:8px; border:1px solid rgba(0,255,136,0.3);">
+                        <p style="color:#00ff88; font-size:0.95rem; margin:0;">💡 <strong>就像人的神经系统：</strong>脊髓管反射（不过脑子），大脑管思考。ESP-Claw是脊髓，Hermes是大脑。</p>
+                    </div>
+                    <div style="margin-top:1rem; display:flex; flex-wrap:wrap; gap:0.5rem;">
+                        <span style="background:rgba(0,255,136,0.2); color:#00ff88; padding:0.2rem 0.6rem; border-radius:12px; font-size:0.8rem;">GPIO/舵机控制</span>
+                        <span style="background:rgba(0,255,136,0.2); color:#00ff88; padding:0.2rem 0.6rem; border-radius:12px; font-size:0.8rem;">摄像头/传感器</span>
+                        <span style="background:rgba(0,255,136,0.2); color:#00ff88; padding:0.2rem 0.6rem; border-radius:12px; font-size:0.8rem;">LED/喇叭</span>
+                        <span style="background:rgba(0,212,255,0.2); color:#00d4ff; padding:0.2rem 0.6rem; border-radius:12px; font-size:0.8rem;">深度推理</span>
+                        <span style="background:rgba(0,212,255,0.2); color:#00d4ff; padding:0.2rem 0.6rem; border-radius:12px; font-size:0.8rem;">工具调用</span>
+                        <span style="background:rgba(0,212,255,0.2); color:#00d4ff; padding:0.2rem 0.6rem; border-radius:12px; font-size:0.8rem;">长期记忆</span>
+                    </div>
+                </div>
+
+                <!-- 右：哑巴终端架构 -->
+                <div style="background:linear-gradient(135deg, #1a1a1a 0%, #222 100%); border:2px solid #00d4ff; border-radius:16px; padding:2.5rem; position:relative;">
+                    <div style="position:absolute; top:-12px; left:2rem; background:#00d4ff; color:#0a0a0a; padding:0.3rem 1rem; border-radius:20px; font-weight:bold; font-size:0.85rem;">笔形版</div>
+                    <h3 style="color:#00d4ff; font-size:1.8rem; margin:1rem 0 0.5rem;">🖊️ 哑巴终端架构</h3>
+                    <p style="color:#888; margin-bottom:1.5rem; font-size:1.05rem;">ESP32-C3 纯透传 + Hermes 全权负责</p>
+                    <div style="display:flex; flex-direction:column; gap:0.8rem;">
+                        <div style="display:flex; align-items:center; gap:0.8rem;">
+                            <span style="color:#00d4ff; font-size:1.2rem;">🎤</span>
+                            <span style="color:#ccc;"><strong style="color:#00d4ff;">ESP32-C3</strong> — 只管收音和播放（纯透传）</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:0.8rem;">
+                            <span style="color:#00d4ff; font-size:1.2rem;">🧠</span>
+                            <span style="color:#ccc;"><strong style="color:#00d4ff;">Hermes</strong> — 全部智能（ASR+推理+TTS）</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:0.8rem;">
+                            <span style="color:#8b5cf6; font-size:1.2rem;">📡</span>
+                            <span style="color:#ccc;"><strong style="color:#8b5cf6;">HTTP</strong> — 音频流传输到服务器</span>
+                        </div>
+                    </div>
+                    <div style="margin-top:1.5rem; padding:1rem; background:rgba(0,212,255,0.1); border-radius:8px; border:1px solid rgba(0,212,255,0.3);">
+                        <p style="color:#00d4ff; font-size:0.95rem; margin:0;">💡 <strong>极致精简：</strong>C3芯片成本极低，体积小到能塞进笔杆。所有智能在云端，设备只做音频管道。</p>
+                    </div>
+                    <div style="margin-top:1rem; display:flex; flex-wrap:wrap; gap:0.5rem;">
+                        <span style="background:rgba(0,212,255,0.2); color:#00d4ff; padding:0.2rem 0.6rem; border-radius:12px; font-size:0.8rem;">超低成本</span>
+                        <span style="background:rgba(0,212,255,0.2); color:#00d4ff; padding:0.2rem 0.6rem; border-radius:12px; font-size:0.8rem;">笔形便携</span>
+                        <span style="background:rgba(0,212,255,0.2); color:#00d4ff; padding:0.2rem 0.6rem; border-radius:12px; font-size:0.8rem;">低功耗长续航</span>
+                        <span style="background:rgba(0,212,255,0.2); color:#00d4ff; padding:0.2rem 0.6rem; border-radius:12px; font-size:0.8rem;">语音交互</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 对比表 -->
+            <div style="background:#1a1a1a; border:1px solid #333; border-radius:12px; overflow:hidden;">
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:linear-gradient(135deg, #1a1a2e, #16213e);">
+                            <th style="padding:1rem; text-align:left; color:#fff;">对比维度</th>
+                            <th style="padding:1rem; text-align:center; color:#00ff88;">🤖 双Agent架构（桌面/机器人）</th>
+                            <th style="padding:1rem; text-align:center; color:#00d4ff;">🖊️ 哑巴终端架构（笔形）</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding:0.8rem 1rem; color:#888; border-bottom:1px solid #222;">反应速度</td><td style="padding:0.8rem 1rem; text-align:center; color:#00ff88; border-bottom:1px solid #222;">毫秒级（本地规则匹配）</td><td style="padding:0.8rem 1rem; text-align:center; color:#00d4ff; border-bottom:1px solid #222;">秒级（全靠服务器）</td></tr>
+                        <tr><td style="padding:0.8rem 1rem; color:#888; border-bottom:1px solid #222;">离线能力</td><td style="padding:0.8rem 1rem; text-align:center; color:#00ff88; border-bottom:1px solid #222;">✅ Lua规则可离线执行</td><td style="padding:0.8rem 1rem; text-align:center; color:#666; border-bottom:1px solid #222;">❌ 完全依赖网络</td></tr>
+                        <tr><td style="padding:0.8rem 1rem; color:#888; border-bottom:1px solid #222;">硬件控制</td><td style="padding:0.8rem 1rem; text-align:center; color:#00ff88; border-bottom:1px solid #222;">✅ GPIO/舵机/摄像头/LED</td><td style="padding:0.8rem 1rem; text-align:center; color:#666; border-bottom:1px solid #222;">❌ 只有麦克风和喇叭</td></tr>
+                        <tr><td style="padding:0.8rem 1rem; color:#888; border-bottom:1px solid #222;">推理能力</td><td style="padding:0.8rem 1rem; text-align:center; color:#00d4ff; border-bottom:1px solid #222;">深度推理（Hermes大脑）</td><td style="padding:0.8rem 1rem; text-align:center; color:#00d4ff; border-bottom:1px solid #222;">深度推理（Hermes大脑）</td></tr>
+                        <tr><td style="padding:0.8rem 1rem; color:#888; border-bottom:1px solid #222;">硬件成本</td><td style="padding:0.8rem 1rem; text-align:center; color:#888; border-bottom:1px solid #222;">~¥50-80（S3+外设）</td><td style="padding:0.8rem 1rem; text-align:center; color:#00ff88; border-bottom:1px solid #222;">~¥20-30（C3+麦克风）</td></tr>
+                        <tr><td style="padding:0.8rem 1rem; color:#888;">体积</td><td style="padding:0.8rem 1rem; text-align:center; color:#888;">桌面级</td><td style="padding:0.8rem 1rem; text-align:center; color:#00ff88;">笔形大小</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section id="tech" class="tech-stack">
+        <div class="container">
+            <h2 class="section-title">技术<span>栈</span></h2>
+            <div class="tech-grid">
+                <div class="tech-card fade-in">
+                    <h3>🐾 ESP-Claw Agent</h3>
+                    <ul>
+                        <li>乐鑫官方开源ESP32 AI Agent框架</li>
+                        <li>内置Lua脚本引擎控制硬件</li>
+                        <li>72个能力模块（19个技能）</li>
+                        <li>380个源文件，12.5万行代码</li>
+                        <li>固件大小仅3.4MB</li>
+                        <li>已在ESP32-S3-N16R8上运行</li>
+                    </ul>
+                </div>
+                <div class="tech-card fade-in">
+                    <h3>🔗 MCP 协议</h3>
+                    <ul>
+                        <li>Model Context Protocol 标准协议</li>
+                        <li>设备既是Server又是Client</li>
+                        <li>局域网内低延迟通信</li>
+                        <li>JSON-RPC 消息格式</li>
+                        <li>工具发现与调用机制</li>
+                        <li>支持双向实时交互</li>
+                    </ul>
+                </div>
+                <div class="tech-card fade-in">
+                    <h3>🧠 Hermes 高级大脑</h3>
+                    <ul>
+                        <li>高级推理与决策能力</li>
+                        <li>长期记忆与上下文管理</li>
+                        <li>复杂工具调用编排</li>
+                        <li>多轮对话理解</li>
+                        <li>知识图谱集成</li>
+                        <li>本地服务器部署（4060 8G）</li>
+                    </ul>
+                </div>
+                <div class="tech-card fade-in">
+                    <h3>⚙️ Lua 脚本引擎</h3>
+                    <ul>
+                        <li>GPIO 引脚控制</li>
+                        <li>舵机/电机精确驱动</li>
+                        <li>摄像头拍照采集</li>
+                        <li>LED 灯光控制</li>
+                        <li>传感器数据读取</li>
+                        <li>动态脚本热更新</li>
+                    </ul>
+                </div>
+                <div class="tech-card fade-in">
+                    <h3>📱 IM 平台集成</h3>
+                    <ul>
+                        <li>微信消息收发</li>
+                        <li>QQ 机器人接入</li>
+                        <li>飞书应用集成</li>
+                        <li>Telegram Bot 支持</li>
+                        <li>多平台统一消息路由</li>
+                        <li>富媒体消息支持</li>
+                    </ul>
+                </div>
+                <div class="tech-card fade-in">
+                    <h3>🎯 事件路由系统</h3>
+                    <ul>
+                        <li>结构化事件总线</li>
+                        <li>消息优先级队列</li>
+                        <li>异步事件处理</li>
+                        <li>订阅/发布模式</li>
+                        <li>错误恢复机制</li>
+                        <li>低功耗事件唤醒</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="roadmap" class="roadmap">
+        <div class="container">
+            <h2 class="section-title">发展<span>路线图</span></h2>
+            <div class="roadmap-container">
+                <div class="roadmap-line"></div>
+                
+                <div class="phase completed fade-in">
+                    <div class="phase-content">
+                        <h3>阶段一：听觉智能</h3>
+                        <span class="status">✅ 已完成</span>
+                        <p>完整的语音交互闭环，从唤醒到回复</p>
+                        <ul>
+                            <li>ESP-SR 唤醒词 "你好小鑫"</li>
+                            <li>VAD 语音活动检测</li>
+                            <li>ASR 语音转文字</li>
+                            <li>Chat LLM 对话推理</li>
+                            <li>TTS 文字转语音</li>
+                            <li>I2S 音频播放</li>
+                        </ul>
+                    </div>
+                    <div class="phase-dot"></div>
+                </div>
+                
+                <div class="phase completed fade-in">
+                    <div class="phase-content">
+                        <h3>ESP-Claw集成</h3>
+                        <span class="status">✅ 已完成</span>
+                        <p>接入乐鑫官方AI Agent框架，实现双Agent架构</p>
+                        <ul>
+                            <li>ESP-Claw框架编译运行成功</li>
+                            <li>MCP协议Server/Client双模式</li>
+                            <li>Lua脚本引擎硬件控制</li>
+                            <li>事件路由与消息分发系统</li>
+                            <li>IM平台集成（微信/QQ/飞书）</li>
+                            <li>结构化记忆与上下文管理</li>
+                        </ul>
+                    </div>
+                    <div class="phase-dot"></div>
+                </div>
+                
+                <div class="phase in-progress fade-in">
+                    <div class="phase-content">
+                        <h3>阶段二：视觉感知</h3>
+                        <span class="status">🔄 进行中</span>
+                        <p>让小希"看见"并理解周围环境</p>
+                        <ul>
+                            <li>ESP32-CAM 拍照采集</li>
+                            <li>RoboBrain VLM 场景理解</li>
+                            <li>物体识别与描述</li>
+                            <li>人脸检测与识别</li>
+                            <li>文字OCR识别</li>
+                            <li>视觉问答交互</li>
+                        </ul>
+                    </div>
+                    <div class="phase-dot"></div>
+                </div>
+                
+                <div class="phase planned fade-in">
+                    <div class="phase-content">
+                        <h3>阶段三：运动控制</h3>
+                        <span class="status">📋 规划中</span>
+                        <p>赋予小希物理世界的行动能力</p>
+                        <ul>
+                            <li>舵机/电机精确控制</li>
+                            <li>Lua脚本动作编排</li>
+                            <li>超声波避障导航</li>
+                            <li>IMU 姿态感知</li>
+                            <li>自主移动能力</li>
+                            <li>机械臂操作（远期）</li>
+                        </ul>
+                    </div>
+                    <div class="phase-dot"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="products" class="products">
+        <div class="container">
+            <h2 class="section-title">产品<span>线</span></h2>
+            <table class="product-table">
+                <thead>
+                    <tr>
+                        <th>型号</th>
+                        <th>形态</th>
+                        <th>主控</th>
+                        <th>摄像头</th>
+                        <th>运动控制</th>
+                        <th>适用场景</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="product-name">C3 笔形版</td>
+                        <td>笔形便携</td>
+                        <td>ESP32-C3</td>
+                        <td class="cross">—</td>
+                        <td class="cross">—</td>
+                        <td>随身语音助手</td>
+                    </tr>
+                    <tr>
+                        <td class="product-name">S3 标准版</td>
+                        <td>桌面终端</td>
+                        <td>ESP32-S3-N16R8</td>
+                        <td class="check">✓</td>
+                        <td class="check">✓</td>
+                        <td>双Agent智能家居中控（基于ESP-Claw）</td>
+                    </tr>
+                    <tr>
+                        <td class="product-name">CAM 视觉版</td>
+                        <td>摄像头终端</td>
+                        <td>ESP32-S3</td>
+                        <td class="check">✓ OV2640</td>
+                        <td class="check">✓</td>
+                        <td>安防监控/视觉AI</td>
+                    </tr>
+                    <tr>
+                        <td class="product-name">S3Mini 迷你版</td>
+                        <td>迷你终端</td>
+                        <td>ESP32-S3</td>
+                        <td class="cross">—</td>
+                        <td class="cross">—</td>
+                        <td>低成本语音交互</td>
+                    </tr>
+                    <tr>
+                        <td class="product-name">六足机器人版</td>
+                        <td>仿生机器人</td>
+                        <td>ESP32-S3</td>
+                        <td class="check">✓ OV2640</td>
+                        <td class="check">✓ 18舵机</td>
+                        <td>仿生机器人/运动控制研究</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="api" class="api-section">
+        <div class="container">
+            <h2 class="section-title">API <span>端点</span></h2>
+            <div class="api-grid">
+                <div class="api-card fade-in">
+                    <div class="method">POST</div>
+                    <h4>/v1/chat/completions</h4>
+                    <p>对话推理 - OpenAI兼容格式</p>
+                </div>
+                <div class="api-card fade-in">
+                    <div class="method">POST</div>
+                    <h4>/v1/audio/transcriptions</h4>
+                    <p>语音识别 - ASR转文字</p>
+                </div>
+                <div class="api-card fade-in">
+                    <div class="method">POST</div>
+                    <h4>/v1/audio/speech</h4>
+                    <p>语音合成 - TTS生成音频</p>
+                </div>
+                <div class="api-card fade-in">
+                    <div class="method">POST</div>
+                    <h4>/v1/vision/analyze</h4>
+                    <p>视觉分析 - 图像场景理解</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="quickstart" class="quick-start">
+        <div class="container">
+            <h2 class="section-title">快速<span>开始</span></h2>
+            <div class="steps">
+                <div class="step fade-in">
+                    <div class="step-number">1</div>
+                    <h3>硬件准备</h3>
+                    <p>准备 ESP32-S3-N16R8 开发板、I2S 麦克风、扬声器模块</p>
+                    <div class="code-block"><code>推荐硬件：ESP32-S3-DevKitC-1-N16R8 + INMP441麦克风 + MAX98357A功放</code></div>
+                </div>
+                
+                <div class="step fade-in">
+                    <div class="step-number">2</div>
+                    <h3>克隆ESP-Claw</h3>
+                    <p>获取乐鑫官方AI Agent框架</p>
+                    <div class="code-block"><code>git clone --recursive https://github.com/espressif/esp-claw.git
+cd esp-claw</code></div>
+                </div>
+                
+                <div class="step fade-in">
+                    <div class="step-number">3</div>
+                    <h3>编译烧录</h3>
+                    <p>使用ESP-Claw的idf.py bmgr方式编译</p>
+                    <div class="code-block"><code>idf.py set-target esp32s3
+idf.py bmgr build    <span class="comment"># 使用构建管理器编译</span>
+idf.py -p /dev/ttyUSB0 flash monitor</code></div>
+                </div>
+                
+                <div class="step fade-in">
+                    <div class="step-number">4</div>
+                    <h3>配置Hermes连接</h3>
+                    <p>配置ESP-Claw连接Hermes高级大脑</p>
+                    <div class="code-block"><code><span class="comment"># 在menuconfig中配置</span>
+idf.py menuconfig  # 设置WiFi、Hermes服务器IP、MCP端口
+
+<span class="comment"># 启动Hermes后，对小希说 "你好小鑫" 开始对话</span></code></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>小希 — 双Agent具身智能语音助手 | ESP-Claw + Hermes | 隐私优先</p>
+            <p style="margin-top: 1rem;">© 2024-2026 小希项目 · <a href="https://github.com/espressif/esp-claw">ESP-Claw GitHub</a> · <a href="https://xixisz.top">官网</a></p>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+        
+        // Fade in animation
+        const observerOptions = {
+            threshold: 0.1
+        };
+        
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, observerOptions);
+        
+        document.querySelectorAll('.fade-in').forEach(el => {
+            observer.observe(el);
+        });
+    </script>
 </body>
 </html>

@@ -1,0 +1,16 @@
+## IDF Component Manager Manifest File
+## 小希固件 — 音频模块依赖
+
+dependencies:
+  espressif/esp-sr: ~2.3.0
+  espressif/esp_audio_codec: ~2.4.1
+  espressif/esp_codec_dev: ~1.5.6
+  espressif/esp_audio_effects: ~1.2.1
+  espressif/led_strip: ~3.0.2
+  espressif/button: ~4.1.5
+  espressif/esp32-camera:
+    version: ^2.1.6
+    rules:
+    - if: target in [esp32s3]
+  idf:
+    version: '>=5.4.0'

@@ -1,0 +1,15 @@
+# 参考代码（太大，不上 git）
+esp-claw/
+
+# ESP-IDF 构建产物
+xiaoxi-firmware/build/
+xiaoxi-firmware/managed_components/
+xiaoxi-firmware/dependencies.lock
+
+# 编辑器/系统
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+__pycache__/
