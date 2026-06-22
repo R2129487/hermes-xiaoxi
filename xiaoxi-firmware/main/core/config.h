@@ -77,11 +77,19 @@ struct XiaoXiConfig {
     int radar_trig_pin = -1;
     int radar_echo_pin = -1;
 
-    // === 获取实际使用的端点（优先用独立配置，fallback 到通用）===
-    const ModelEndpoint &GetChatEndpoint() const {
-        return chat.IsEmpty() ? *(const ModelEndpoint *)&agent_url : chat;
-        // 注意：如果 chat 为空，fallback 用 agent_url 构造临时端点
-        // 实际使用时应通过 GetEffectiveChatUrl() 等方法
+    // === 获取实际使用的端点 URL（独立配置优先，fallback 到通用）===
+    // 注意：不要直接对 char[] 进行结构体 reinterpret_cast！用下面的方法。
+    const char *GetEffectiveChatUrl() const {
+        return chat.url[0] ? chat.url : agent_url;
+    }
+    const char *GetEffectiveAsrUrl() const {
+        return asr.url[0] ? asr.url : agent_url;
+    }
+    const char *GetEffectiveTtsUrl() const {
+        return tts.url[0] ? tts.url : agent_url;
+    }
+    const char *GetEffectiveVisionUrl() const {
+        return vision.url[0] ? vision.url : agent_url;
     }
 };
 

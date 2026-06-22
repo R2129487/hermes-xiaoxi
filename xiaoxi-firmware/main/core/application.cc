@@ -135,6 +135,16 @@ void Application::Run() {
 }
 
 void Application::Shutdown() {
+    ESP_LOGI(TAG, "=== 小希固件关闭 ===");
+
+    // 停止语音任务
     stop_voice_task();
-    ESP_LOGI(TAG, "Firmware shutdown");
+
+    // 停止按钮检测任务
+    XiaoXiBoard::GetInstance().StopButtonTask();
+
+    // 停止 Web 服务器
+    WebServer::GetInstance().Stop();
+
+    ESP_LOGI(TAG, "Firmware shutdown complete");
 }

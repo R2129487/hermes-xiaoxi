@@ -14,15 +14,22 @@ AudioCodec::AudioCodec() {
 AudioCodec::~AudioCodec() {
 }
 
+// 写入音频数据到输出
 void AudioCodec::OutputData(std::vector<int16_t>& data) {
     Write(data.data(), data.size());
 }
 
+// 从输入读取音频数据
+// 返回 true 表示读取到数据。实际读取到的样本数通过 data.size() 反映（resize 调整）
 bool AudioCodec::InputData(std::vector<int16_t>& data) {
+    if (data.empty()) return false;
     int samples = Read(data.data(), data.size());
     if (samples > 0) {
+        // 重要：按实际读取量 resize，避免调用方读到垃圾数据
+        data.resize(samples);
         return true;
     }
+    data.clear();
     return false;
 }
 
@@ -38,14 +45,17 @@ void AudioCodec::Start() {
 }
 
 void AudioCodec::SetOutputVolume(int volume) {
+    if (volume < 0) volume = 0;
+    if (volume > 100) volume = 100;
     output_volume_ = volume;
     ESP_LOGI(TAG, "Set output volume to %d", output_volume_);
-    
+
     Settings settings("audio", true);
     settings.SetInt("output_volume", output_volume_);
 }
 
 void AudioCodec::SetInputGain(float gain) {
+    if (gain < 0.0f) gain = 0.0f;
     input_gain_ = gain;
     ESP_LOGI(TAG, "Set input gain to %.1f", input_gain_);
 }
