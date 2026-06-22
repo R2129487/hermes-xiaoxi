@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <functional>
+#include <atomic>
 
 // 按钮事件回调
 using ButtonCallback = std::function<void()>;
@@ -20,6 +21,7 @@ public:
 
     // GPIO 按钮
     void RegisterButtonCallback(ButtonCallback cb);
+    void StopButtonTask();  // 停止按钮检测任务
 
     // 获取唤醒词模型路径（用于 ESP-SR esp_srmodel_init）
     // 返回 "model" 或具体分区路径

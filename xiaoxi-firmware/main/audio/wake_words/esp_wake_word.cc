@@ -64,34 +64,55 @@ void EspWakeWord::Feed(const std::vector<int16_t>& data) {
         return;
     }
 
-    std::lock_guard<std::mutex> lock(input_buffer_mutex_);
-    // Check running state inside lock to avoid TOCTOU race with Stop()
-    if (!running_) {
+    // 先检查 running 状态（快速路径，无锁）
+    if (!running_.load()) {
         return;
     }
 
-    if (codec_ != nullptr && codec_->input_channels() == 2) {
-        for (size_t i = 0; i < data.size(); i += 2) {
-            input_buffer_.push_back(data[i]);
+    std::string detected_word;
+    bool detected = false;
+
+    // 用大括号控制临界区范围，确保调用回调时已释放锁
+    {
+        std::lock_guard<std::mutex> lock(input_buffer_mutex_);
+
+        // 在锁内再次检查 running 状态（防止 TOCTOU 竞态）
+        if (!running_) {
+            return;
         }
-    } else {
-        input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
-    }
 
-    int chunksize = wakenet_iface_->get_samp_chunksize(wakenet_data_);
-    while (input_buffer_.size() >= chunksize) {
-        int res = wakenet_iface_->detect(wakenet_data_, input_buffer_.data());
-        if (res > 0) {
-            last_detected_wake_word_ = wakenet_iface_->get_word_name(wakenet_data_, res);
-            running_ = false;
-            input_buffer_.clear();
-
-            if (wake_word_detected_callback_) {
-                wake_word_detected_callback_(last_detected_wake_word_);
+        // 声道转换（双声道取左声道）
+        if (codec_ != nullptr && codec_->input_channels() == 2) {
+            for (size_t i = 0; i < data.size(); i += 2) {
+                input_buffer_.push_back(data[i]);
             }
-            break;
+        } else {
+            input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
         }
-        input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunksize);
+
+        // 逐块检测唤醒词
+        int chunksize = wakenet_iface_->get_samp_chunksize(wakenet_data_);
+        while (input_buffer_.size() >= (size_t)chunksize) {
+            int res = wakenet_iface_->detect(wakenet_data_, input_buffer_.data());
+            if (res > 0) {
+                detected_word = wakenet_iface_->get_word_name(wakenet_data_, res);
+                running_ = false;
+                input_buffer_.clear();
+                detected = true;
+                break;
+            }
+            input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunksize);
+        }
+
+        if (detected) {
+            last_detected_wake_word_ = detected_word;
+        }
+    }
+    // 此时 input_buffer_mutex_ 已释放
+
+    // 在锁外调用回调，防止死锁（回调可能尝试获取同一个 mutex）
+    if (detected && wake_word_detected_callback_) {
+        wake_word_detected_callback_(detected_word);
     }
 }
 

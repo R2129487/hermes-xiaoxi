@@ -98,6 +98,8 @@ idf_component_register(
         json
         bt
         esp-sr
+        usb
+        usb_host_uvc
 )
 
 target_compile_definitions(${COMPONENT_LIB} PRIVATE XIAOXI_FIRMWARE=1)
