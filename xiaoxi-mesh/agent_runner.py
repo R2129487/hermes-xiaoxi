@@ -14,12 +14,15 @@ import logging
 import signal
 import sys
 import os
+import uuid
 
 # 把当前目录加到路径，以便导入 client 模块
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import httpx
 from client import MeshClient
 from executors import get_executors
+from decision_engine import DecisionEngine, DecisionType
 
 logging.basicConfig(
     level=logging.INFO,
@@ -87,12 +90,19 @@ class AgentRunner:
         self.executors = get_executors(agent_id)
         log.info(f"   加载了 {len(self.executors)} 个执行器")
 
+        # 初始化自主决策引擎
+        self.decision_engine = DecisionEngine(
+            agent_id=agent_id,
+            capabilities=self.capabilities,
+            specialties=self.specialties,
+            description=self.description,
+        )
+
     async def _ensure_token(self):
         """确保有可用的 token：先尝试注册，已存在则用 admin 获取新 token"""
         if self.token:
             return
 
-        import httpx
         async with httpx.AsyncClient(timeout=10) as http:
             # 1. 尝试注册（首次会成功并返回 token）
             try:
@@ -160,6 +170,7 @@ class AgentRunner:
 
         # 设置回调
         self.client.on_message(self._handle_message)
+        self.client.on_agent_call(self._handle_agent_call)
         self.client.on_status(self._handle_status)
 
         # 连接并注册
@@ -207,23 +218,100 @@ class AgentRunner:
         else:
             log.info(f"   未处理的消息类型: {msg_type}")
 
+    async def _make_decision(self, task_description: str,
+                              from_agent: str = "") -> dict:
+        """统一决策入口：优先调用 MESH HTTP 决策 API，失败则回退到本地决策引擎
+
+        返回格式与 /api/decide 一致:
+          {"decision": "SELF"|"DELEGATE"|"UNKNOWN",
+           "target_agent": "...", "reason": "...",
+           "required_capability": "...", "confidence": 0.0,
+           "alternatives": []}
+        """
+        # ── 方式1: 调用 MESH HTTP 决策 API ──
+        try:
+            async with httpx.AsyncClient(timeout=15) as http:
+                resp = await http.post(
+                    f"{self.server_http}/api/decide",
+                    json={
+                        "description": task_description,
+                        "from_agent": from_agent or self.agent_id,
+                    },
+                )
+                if resp.status_code == 200:
+                    body = resp.json()
+                    data = body.get("data", body)
+                    log.info(f"🧠 MESH决策API返回: {data.get('decision')} | "
+                             f"目标: {data.get('target_agent')} | "
+                             f"原因: {data.get('reason')}")
+                    return data
+        except Exception as e:
+            log.warning(f"MESH决策API调用失败，回退到本地引擎: {e}")
+
+        # ── 方式2: 本地 DecisionEngine 兜底 ──
+        local = await self.decision_engine.decide(task_description, self.client)
+        log.info(f"🧠 本地决策: {local.decision.value} | "
+                 f"能力: {local.capability_needed} | "
+                 f"原因: {local.reason} | 置信度: {local.confidence}")
+        return {
+            "decision": local.decision.value.upper(),
+            "target_agent": local.target_agent,
+            "reason": local.reason,
+            "required_capability": local.capability_needed,
+            "confidence": local.confidence,
+            "alternatives": local.alternatives,
+        }
+
+    # ── 任务处理（带决策流程）──
+
     async def _handle_task(self, msg: dict):
-        """处理任务委派"""
+        """处理任务委派 — 先走决策流程，再按结果执行或委派"""
         task_id = msg.get("metadata", {}).get("task_id", "unknown")
         content = msg.get("content", "")
         from_id = msg.get("from", "")
         log.info(f"📋 收到任务 [{task_id}]: {content}")
 
-        # 回复收到
+        # 1. 调用统一决策
+        decision = await self._make_decision(content, from_agent=self.agent_id)
+        action = decision.get("decision", "SELF").upper()
+        target = decision.get("target_agent", "")
+        reason = decision.get("reason", "")
+
+        # 2. 根据决策执行
+        if action == "DELEGATE" and target:
+            await self._delegate_task(task_id, content, from_id, decision)
+        elif action == "UNKNOWN":
+            # 无法判断：通知调用方，然后尝试本地执行
+            if self.client:
+                await self.client.send(
+                    from_id,
+                    f"任务 [{task_id}]：无法确定最佳执行者（需要 "
+                    f"{decision.get('required_capability', '')}），尝试本地处理。",
+                    "text",
+                )
+            await self._execute_and_reply(task_id, content, from_id)
+        else:
+            # SELF：自己执行
+            await self._execute_and_reply(task_id, content, from_id)
+
+    async def _execute_and_reply(self, task_id: str, content: str,
+                                  from_id: str):
+        """本地执行任务并把结果回复给请求者"""
         if self.client:
             await self.client.send(from_id, f"收到任务 [{task_id}]，开始执行...", "text")
 
-            # TODO: 这里可以接入实际的任务执行逻辑
-            # 暂时只回复收到
-            await self.client.send(from_id, f"任务 [{task_id}] 执行完成", "text")
+        result = await self._execute_locally(content)
+
+        if self.client:
+            if result:
+                await self.client.send(
+                    from_id, f"任务 [{task_id}] 执行完成\n{result}", "text"
+                )
+            else:
+                await self.client.send(from_id, f"任务 [{task_id}] 执行完成", "text")
 
     async def _handle_agent_call(self, msg: dict):
-        """处理跨智能体调用"""
+        """处理跨智能体调用 — 先决策，再执行或转发"""
         action = msg.get("content", "")
         params = msg.get("metadata", {}).get("params", {})
         from_id = msg.get("from", "")
@@ -231,21 +319,43 @@ class AgentRunner:
         
         log.info(f"📞 收到调用请求: {action}({json.dumps(params, ensure_ascii=False)[:100]})")
 
-        # 查找执行器
+        # ── 决策：检查自己是否能处理 ──
+        if not self.decision_engine.can_handle(action):
+            log.info(f"🔀 自己没有 {action} 能力，走决策流程...")
+            decision = await self._make_decision(action, from_agent=self.agent_id)
+            target = decision.get("target_agent", "")
+            if decision.get("decision") == "DELEGATE" and target:
+                log.info(f"   转发调用到 {target}")
+                if self.client:
+                    await self.client.call_agent(
+                        target, action,
+                        call_id=call_id, params=params,
+                    )
+                    await self.client.send(
+                        from_id,
+                        f"我({self.name})没有 {action} 能力，已转发给 {target} 处理",
+                        "text",
+                    )
+                return
+
+        # ── 本地执行 ──
         executor = self.executors.get(action)
         if not executor:
-            error_msg = f"未找到执行器: {action}"
-            log.warning(f"   {error_msg}")
-            if self.client:
-                await self.client.send(from_id, f"调用失败: {error_msg}", "text")
-            return
+            # 尝试用 hermes_call 作为通用执行器
+            executor = self.executors.get("hermes_call")
+            if executor:
+                params = {"prompt": action, **params}
+            else:
+                error_msg = f"未找到执行器: {action}"
+                log.warning(f"   {error_msg}")
+                if self.client:
+                    await self.client.send(from_id, f"调用失败: {error_msg}", "text")
+                return
 
-        # 执行
         try:
             result = await executor(params)
             log.info(f"   执行结果: {json.dumps(result, ensure_ascii=False)[:200]}")
             
-            # 发送结果
             if self.client:
                 result_text = json.dumps(result, ensure_ascii=False, indent=2)
                 await self.client.send(from_id, result_text, "text")
@@ -255,11 +365,88 @@ class AgentRunner:
             if self.client:
                 await self.client.send(from_id, error_msg, "text")
 
+    async def _delegate_task(self, task_id: str, content: str,
+                              from_id: str, decision: dict):
+        """将任务委派给其他Agent"""
+        target = decision.get("target_agent", "")
+        cap_needed = decision.get("required_capability", "")
+        if not target:
+            log.error("无法委派：未指定目标Agent")
+            if self.client:
+                await self.client.send(
+                    from_id,
+                    f"任务 [{task_id}]：委派失败，未找到可用的目标Agent",
+                    "text",
+                )
+            return
+        if not self.client:
+            log.error("无法委派：client未连接")
+            return
+
+        # 通知调用方正在委派
+        await self.client.send(
+            from_id,
+            f"任务 [{task_id}]：我({self.name})没有 {cap_needed} 能力，"
+            f"正在转交给 {target} 处理...",
+            "text",
+        )
+
+        # 通过 agent_call 发送任务给目标Agent
+        await self.client.call_agent(
+            target,
+            cap_needed,  # action = 所需能力名称
+            call_id=task_id,
+            params={"task_id": task_id, "description": content, "from_agent": self.agent_id},
+        )
+        log.info(f"📤 任务 [{task_id}] 已委派给 {target}")
+
+    async def _execute_locally(self, content: str) -> str:
+        """尝试本地执行任务，返回结果文本或空字符串"""
+        # 简单策略：用 hermes_call 执行器处理自然语言任务
+        executor = self.executors.get("hermes_call")
+        if not executor:
+            return ""
+        try:
+            result = await executor({"prompt": content, "timeout": 120})
+            if result.get("success"):
+                return result.get("result", "执行完成")
+            else:
+                return f"执行失败: {result.get('error', '未知错误')}"
+        except Exception as e:
+            log.error(f"本地执行异常: {e}")
+            return ""
+
     async def _handle_text(self, msg: dict):
-        """处理普通文本消息"""
+        """处理普通文本消息 — 也走决策流程，判断该自己干还是委派"""
         from_id = msg.get("from", "")
         content = msg.get("content", "")
         log.info(f"💬 [{from_id}]: {content}")
+
+        # 跳过空消息和心跳
+        if not content or content.strip() == "":
+            return
+
+        # 走统一决策流程
+        decision = await self._make_decision(content, from_agent=self.agent_id)
+        action = decision.get("decision", "SELF").upper()
+        target = decision.get("target_agent", "")
+
+        if action == "DELEGATE" and target:
+            # 需要委派 — 生成一个 task_id 并委派
+            task_id = f"txt-{uuid.uuid4().hex[:8]}"
+            log.info(f"💬 文本消息需要委派给 {target}，转为任务 [{task_id}]")
+            await self._delegate_task(task_id, content, from_id, decision)
+        elif action == "UNKNOWN":
+            # 无法判断 — 直接用 hermes 处理
+            log.info(f"💬 无法判断，尝试本地处理")
+            result = await self._execute_locally(content)
+            if self.client and result:
+                await self.client.send(from_id, result, "text")
+        else:
+            # SELF — 本地执行
+            result = await self._execute_locally(content)
+            if self.client and result:
+                await self.client.send(from_id, result, "text")
 
     def _handle_status(self, data: dict):
         """处理状态变更"""

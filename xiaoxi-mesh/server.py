@@ -29,6 +29,7 @@ from storage import Storage
 from permissions import PermissionManager
 from audit import AuditLogger
 from collaboration import AgentRegistry, TaskRouter, TaskDelegator, CapabilityDiscovery
+from decision_engine import DecisionEngine, DecisionType, extract_required_capability
 
 # ── 配置 ──
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -56,6 +57,8 @@ discovery = CapabilityDiscovery(registry, store)
 
 # ── 在线连接管理 ──
 connections: dict[str, WebSocket] = {}
+# ── 决策引擎（全局，供 HTTP API 使用）─
+decision_engine = DecisionEngine(agent_id="server", capabilities=[])
 
 
 # ── 生命周期 ──
@@ -467,8 +470,151 @@ async def get_stats():
     stats["capabilities"] = len(discovery.get_all_capabilities())
     return ApiResponse(data=stats)
 
+class DecideRequest(BaseModel):
+    """决策请求"""
+    description: str
+    from_agent: str = ""
 
-# ── Token 管理 API ──
+
+class ExecuteRequest(BaseModel):
+    """自动执行请求"""
+    task: str
+    target: str = "auto"
+    assigned_by: str = "hermes"
+
+
+# ── 决策 API ──
+
+@app.post("/api/decide")
+async def decide(req: DecideRequest):
+    """决策接口 - 分析任务描述，决定 SELF/DELEGATE/UNKNOWN 并返回最佳目标
+
+    输入:
+      - description: 任务描述文本
+      - from_agent: 发起者 agent_id（可选，用于判断是否自己能执行）
+    输出:
+      - decision: SELF / DELEGATE / UNKNOWN
+      - target_agent: 建议的执行者 agent_id
+      - reason: 决策原因
+      - required_capability: 所需能力
+      - alternatives: 备选 agent 列表
+    """
+    # 1. 从描述中提取所需能力
+    required_caps = extract_required_capability(req.description)
+    primary_cap = required_caps[0] if required_caps else ""
+
+    # 2. 如果指定了发起者，用 DecisionEngine 判断
+    if req.from_agent:
+        caller = registry.get(req.from_agent)
+        if caller:
+            engine = DecisionEngine(
+                agent_id=caller.agent_id,
+                capabilities=caller.capabilities,
+                specialties=caller.specialties,
+                description=caller.description,
+            )
+            decision = await engine.decide(req.description)
+            # 补充目标 Agent 信息：如果 DELEGATE 但没指定目标，用 registry 查
+            if decision.decision == DecisionType.DELEGATE and not decision.target_agent and primary_cap:
+                candidates = registry.get_by_capability(primary_cap)
+                others = [c for c in candidates if c.agent_id != req.from_agent]
+                if others:
+                    decision.target_agent = others[0].agent_id
+                    decision.alternatives = [c.agent_id for c in others[1:5]]
+
+            return ApiResponse(data={
+                "decision": decision.decision.value.upper(),
+                "target_agent": decision.target_agent,
+                "reason": decision.reason,
+                "required_capability": decision.capability_needed,
+                "confidence": decision.confidence,
+                "alternatives": decision.alternatives,
+            })
+
+    # 3. 没有指定发起者，直接查 registry 能力匹配
+    if primary_cap:
+        candidates = registry.get_by_capability(primary_cap)
+        if candidates:
+            return ApiResponse(data={
+                "decision": "DELEGATE",
+                "target_agent": candidates[0].agent_id,
+                "reason": f"任务需要 {primary_cap}，{candidates[0].name} 具备该能力",
+                "required_capability": primary_cap,
+                "confidence": 0.85,
+                "alternatives": [c.agent_id for c in candidates[1:5]],
+            })
+        else:
+            return ApiResponse(data={
+                "decision": "UNKNOWN",
+                "target_agent": "",
+                "reason": f"找不到具备 {primary_cap} 的在线 Agent",
+                "required_capability": primary_cap,
+                "confidence": 0.3,
+                "alternatives": [],
+            })
+
+    # 4. 无法提取能力，交给 TaskRouter 做通用匹配
+    agent = router.route([], req.description)
+    if agent:
+        return ApiResponse(data={
+            "decision": "DELEGATE",
+            "target_agent": agent.agent_id,
+            "reason": f"根据任务描述匹配到 {agent.name}",
+            "required_capability": "",
+            "confidence": 0.6,
+            "alternatives": [],
+        })
+
+    return ApiResponse(data={
+        "decision": "UNKNOWN",
+        "target_agent": "",
+        "reason": "无法确定合适的执行者",
+        "required_capability": "",
+        "confidence": 0.2,
+        "alternatives": [],
+    })
+
+
+@app.post("/api/execute")
+async def execute_task(req: ExecuteRequest):
+    """自动执行接口 - 决策 + 创建任务 + 通知目标 Agent
+
+    输入:
+      - task: 任务描述
+      - target: "auto" 自动决策，或指定 agent_id
+      - assigned_by: 发起者（默认 hermes）
+    输出:
+      - decision: 决策结果
+      - task: 创建的任务信息
+    """
+    # 1. 提取所需能力
+    required_caps = extract_required_capability(req.task)
+
+    # 2. 自动路由（TaskDelegator 内部会用 router 匹配）
+    task = await delegator.create_task(
+        description=req.task,
+        required_capabilities=required_caps,
+        assigned_to=req.target if req.target != "auto" else None,
+        assigned_by=req.assigned_by,
+    )
+
+    # 3. 组装决策信息
+    decision_info = {
+        "decision": "SELF" if task.assigned_to == req.assigned_by else "DELEGATE",
+        "target_agent": task.assigned_to or "",
+        "required_capability": required_caps[0] if required_caps else "",
+    }
+
+    await audit_log.log(req.assigned_by, "auto_execute", task.task_id,
+                        details=json.dumps({"decision": decision_info}))
+
+    return ApiResponse(data={
+        "decision": decision_info,
+        "task": task.model_dump(mode="json"),
+    })
+
+
+# ── 权限 API ──
 
 @app.post("/api/tokens/create")
 async def create_token(agent_id: str, role: str = "agent"):
