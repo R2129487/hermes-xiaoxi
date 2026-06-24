@@ -10,6 +10,8 @@ import time
 from datetime import datetime, timezone
 from collections import defaultdict
 
+import aiosqlite
+
 from models import AuditLog
 
 log = logging.getLogger("xiaoxi-mesh.audit")
@@ -34,11 +36,19 @@ class AuditLogger:
         self._rate_limit_max = rate_limit_max
         # 内存中的操作频率计数: {agent_id: {action: [(timestamp, count)]}}
         self._rate_counters: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
-        # 异常告警阈值
+        # 异常告警阈值（仅用于告警，不阻断）
         self._alert_threshold = rate_limit_max * 2
+        # 持久化连接（延迟初始化）
+        self._rate_db: aiosqlite.Connection | None = None
+
+    async def close(self):
+        """关闭持久化连接"""
+        if self._rate_db is not None:
+            await self._rate_db.close()
+            self._rate_db = None
 
     async def log(self, agent_id: str = "", action: str = "", target: str = "",
-                  result: str = "success", details: str = ""):
+                  result: str = "success", details: str = "") -> bool:
         """记录审计日志
 
         Args:
@@ -47,7 +57,14 @@ class AuditLogger:
             target: 操作目标
             result: 结果 (success, failure, denied)
             details: 额外详情 (JSON 字符串)
+
+        Returns:
+            True 表示记录成功；False 表示因频率超限而被拒绝
         """
+        allowed = await self._check_rate_limit(agent_id, action)
+        if not allowed:
+            return False
+
         entry = AuditLog(
             timestamp=datetime.now(timezone.utc),
             agent_id=agent_id,
@@ -59,55 +76,57 @@ class AuditLogger:
         await self._storage.save_audit_log(entry)
         log.info(f"[审计] {agent_id} {action} -> {target} ({result})")
 
-        # 异常行为检测
-        self._check_rate_limit(agent_id, action)
+        # 异常行为告警（仅记录不阻断）
+        if not allowed:
+            pass  # 已在 _check_rate_limit 中记录警告
+        return True
 
-    async def log_login(self, agent_id: str, success: bool = True):
+    async def log_login(self, agent_id: str, success: bool = True) -> bool:
         """记录登录事件"""
-        await self.log(
+        return await self.log(
             agent_id=agent_id,
             action="login",
             target=agent_id,
             result="success" if success else "failure",
         )
 
-    async def log_logout(self, agent_id: str):
+    async def log_logout(self, agent_id: str) -> bool:
         """记录登出事件"""
-        await self.log(
+        return await self.log(
             agent_id=agent_id,
             action="logout",
             target=agent_id,
         )
 
-    async def log_message(self, from_id: str, to_id: str, msg_type: str = "text"):
+    async def log_message(self, from_id: str, to_id: str, msg_type: str = "text") -> bool:
         """记录消息发送"""
-        await self.log(
+        return await self.log(
             agent_id=from_id,
             action="message_send",
             target=to_id,
             details=json.dumps({"type": msg_type})
         )
 
-    async def log_task(self, agent_id: str, task_id: str, action: str = "task_create"):
+    async def log_task(self, agent_id: str, task_id: str, action: str = "task_create") -> bool:
         """记录任务操作"""
-        await self.log(
+        return await self.log(
             agent_id=agent_id,
             action=action,
             target=task_id,
         )
 
-    async def log_capability_update(self, agent_id: str, capabilities: list[str]):
+    async def log_capability_update(self, agent_id: str, capabilities: list[str]) -> bool:
         """记录能力更新"""
-        await self.log(
+        return await self.log(
             agent_id=agent_id,
             action="capability_update",
             target=agent_id,
             details=json.dumps({"capabilities": capabilities})
         )
 
-    async def log_permission_change(self, admin_id: str, target_role: str, details: str = ""):
+    async def log_permission_change(self, admin_id: str, target_role: str, details: str = "") -> bool:
         """记录权限变更"""
-        await self.log(
+        return await self.log(
             agent_id=admin_id,
             action="permission_change",
             target=target_role,
@@ -133,30 +152,93 @@ class AuditLogger:
             for l in logs
         ]
 
-    def _check_rate_limit(self, agent_id: str, action: str):
-        """检查操作频率是否异常"""
-        if not agent_id:
+    # ------------------------------------------------------------------
+    # 持久化与频率限制（核心逻辑）
+    # ------------------------------------------------------------------
+
+    async def _ensure_rate_db(self):
+        """确保持久化表存在并加载历史数据"""
+        if self._rate_db is not None:
             return
+        db_path = self._storage.db_path
+        self._rate_db = await aiosqlite.connect(str(db_path))
+        await self._rate_db.execute(
+            """CREATE TABLE IF NOT EXISTS rate_limits (
+                agent_id TEXT,
+                action TEXT,
+                timestamp REAL
+            )"""
+        )
+        await self._rate_db.commit()
+        await self._load_counters()
+
+    async def _load_counters(self):
+        """从持久化表加载窗口内的频率数据到内存"""
+        window_start = time.time() - self._rate_limit_window
+        cursor = await self._rate_db.execute(
+            "SELECT agent_id, action, timestamp FROM rate_limits WHERE timestamp > ?",
+            (window_start,)
+        )
+        rows = await cursor.fetchall()
+        for agent_id, action, ts in rows:
+            self._rate_counters[agent_id][action].append(ts)
+        await cursor.close()
+
+    async def _add_rate_entry(self, agent_id: str, action: str):
+        """将当前操作写入持久化表"""
+        now = time.time()
+        await self._rate_db.execute(
+            "INSERT INTO rate_limits (agent_id, action, timestamp) VALUES (?, ?, ?)",
+            (agent_id, action, now)
+        )
+        await self._rate_db.commit()
+
+    async def _check_rate_limit(self, agent_id: str, action: str) -> bool:
+        """检查操作频率限制
+
+        Returns:
+            True: 允许操作；False: 超过限制，应拒绝操作
+        """
+        if not agent_id:
+            return True
+
+        await self._ensure_rate_db()
 
         now = time.time()
         window_start = now - self._rate_limit_window
-
-        # 清理过期记录
         timestamps = self._rate_counters[agent_id][action]
-        self._rate_counters[agent_id][action] = [
-            t for t in timestamps if t > window_start
-        ]
 
-        # 添加新记录
-        self._rate_counters[agent_id][action].append(now)
+        # 清理内存中过期的记录
+        timestamps[:] = [t for t in timestamps if t > window_start]
 
-        # 检查是否超过阈值
-        count = len(self._rate_counters[agent_id][action])
+        # 将当前操作写入持久化表（先写，保证数据不丢失）
+        await self._add_rate_entry(agent_id, action)
+
+        # 将当前时间戳加入内存
+        timestamps.append(now)
+
+        count = len(timestamps)
+
+        # 频率限制生效逻辑
+        if count > self._rate_limit_max:
+            log.warning(
+                f"[审计频率限制] 智能体 {agent_id} 操作 {action} 次数 {count} "
+                f"超过限制 {self._rate_limit_max} 次/{self._rate_limit_window}s，已拒绝"
+            )
+            return False
+
+        # 超过告警阈值（仅告警，不阻断）
         if count > self._alert_threshold:
             log.warning(
                 f"[审计告警] 智能体 {agent_id} 操作 {action} 频率异常: "
                 f"{count} 次/{self._rate_limit_window}秒 (阈值: {self._alert_threshold})"
             )
+
+        return True
+
+    # ------------------------------------------------------------------
+    # 统计接口（仅使用内存数据，不涉及 DB，保持与之前兼容）
+    # ------------------------------------------------------------------
 
     def get_rate_stats(self, agent_id: str = None) -> dict:
         """获取操作频率统计"""
