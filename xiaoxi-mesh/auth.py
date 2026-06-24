@@ -3,16 +3,22 @@
 支持标准 JWT 认证和带权限信息的 Token 生成/验证。
 """
 from __future__ import annotations
+import os
 import jwt
 import bcrypt
 from datetime import datetime, timedelta, timezone
-from typing import Optional, List
+from typing import Optional, List, Callable
 from models import TokenPayload
 
 
 class Auth:
-    def __init__(self, secret_key: str, token_expire_hours: int = 72):
-        self.secret_key = secret_key
+    def __init__(self, secret_key: str = "", token_expire_hours: int = 72):
+        # 优先使用环境变量中的密钥
+        env_secret = os.environ.get("MESH_SECRET_KEY")
+        if env_secret:
+            self.secret_key = env_secret
+        else:
+            self.secret_key = secret_key
         self.token_expire_hours = token_expire_hours
 
     def hash_password(self, password: str) -> str:
@@ -56,13 +62,27 @@ class Auth:
         }
         return jwt.encode(payload, self.secret_key, algorithm="HS256")
 
-    def verify_token(self, token: str) -> Optional[TokenPayload]:
-        """验证 JWT Token"""
+    def verify_token(self, token: str,
+                     token_check: Optional[Callable[[str], bool]] = None
+                     ) -> Optional[TokenPayload]:
+        """验证 JWT Token
+
+        Args:
+            token: 待验证的 Token 字符串
+            token_check: 可选的检查函数，接收 token 字符串，
+                         返回 True 表示 token 未被撤销，False 表示已撤销。
+
+        Returns:
+            验证通过返回 TokenPayload，否则返回 None（过期、签名无效或已被撤销）。
+        """
         try:
             payload = jwt.decode(
                 token, self.secret_key, algorithms=["HS256"],
                 options={"verify_exp": True}
             )
+            # 如果提供了撤销检查回调，则检查 token 是否已被撤销
+            if token_check is not None and not token_check(token):
+                return None
             return TokenPayload(
                 agent_id=payload["agent_id"],
                 role=payload["role"],
