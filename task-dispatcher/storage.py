@@ -7,7 +7,7 @@ import aiosqlite
 import json
 import os
 from typing import Optional
-from models import Task, Agent, Server, TaskLog, CREATE_TABLES_SQL, now_str
+from models import Task, Agent, Server, TaskLog, User, CREATE_TABLES_SQL, now_str
 
 
 class Storage:
@@ -29,6 +29,11 @@ class Storage:
                 await self._conn.execute(f"ALTER TABLE agents ADD COLUMN {col} TEXT")
             except Exception:
                 pass  # 字段已存在
+        # 迁移：添加 type 字段
+        try:
+            await self._conn.execute("ALTER TABLE agents ADD COLUMN type TEXT DEFAULT 'agent'")
+        except Exception:
+            pass
         # 迁移：添加 servers 表（兼容旧库）
         try:
             await self._conn.execute("SELECT 1 FROM servers LIMIT 1")
@@ -37,6 +42,11 @@ class Storage:
                 id TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT '', host TEXT NOT NULL DEFAULT '',
                 port INTEGER DEFAULT 22, ssh_user TEXT DEFAULT 'root', location TEXT DEFAULT '',
                 status TEXT DEFAULT 'offline', remark TEXT, created_at TEXT)""")
+        # 迁移：添加 chat_messages 的 user_id 字段（兼容旧库）
+        try:
+            await self._conn.execute("ALTER TABLE chat_messages ADD COLUMN user_id TEXT")
+        except Exception:
+            pass  # 字段已存在
         await self._conn.commit()
 
     async def close(self):
@@ -109,10 +119,10 @@ class Storage:
         agent.registered_at = now_str()
         agent.last_seen = now_str()
         await self._conn.execute(
-            """INSERT INTO agents (id, name, capabilities, status, current_load, max_load, last_seen, registered_at,
+            """INSERT INTO agents (id, name, type, capabilities, status, current_load, max_load, last_seen, registered_at,
                connection_type, host, port, ssh_user, command_template)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (agent.id, agent.name, agent.capabilities, agent.status,
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (agent.id, agent.name, agent.type, agent.capabilities, agent.status,
              agent.current_load, agent.max_load, agent.last_seen, agent.registered_at,
              agent.connection_type, agent.host, agent.port, agent.ssh_user, agent.command_template)
         )
@@ -237,20 +247,28 @@ class Storage:
     # ==================== 聊天消息操作 ====================
 
     async def save_chat_message(self, session_id: str, role: str, content: str,
-                                 tool_calls: str = None, tool_call_id: str = None) -> int:
+                                 tool_calls: str = None, tool_call_id: str = None,
+                                 user_id: str = None) -> int:
         cursor = await self._conn.execute(
-            """INSERT INTO chat_messages (session_id, role, content, tool_calls, tool_call_id, timestamp)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (session_id, role, content, tool_calls, tool_call_id, now_str())
+            """INSERT INTO chat_messages (session_id, role, content, tool_calls, tool_call_id, timestamp, user_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (session_id, role, content, tool_calls, tool_call_id, now_str(), user_id)
         )
         await self._conn.commit()
         return cursor.lastrowid
 
-    async def get_chat_history(self, session_id: str, limit: int = 200) -> list[dict]:
-        cursor = await self._conn.execute(
-            """SELECT * FROM chat_messages WHERE session_id = ? ORDER BY id ASC LIMIT ?""",
-            (session_id, limit)
-        )
+    async def get_chat_history(self, session_id: str, limit: int = 200, user_id: str = None) -> list[dict]:
+        if user_id:
+            cursor = await self._conn.execute(
+                """SELECT * FROM chat_messages WHERE session_id = ? AND user_id = ?
+                   ORDER BY id ASC LIMIT ?""",
+                (session_id, user_id, limit)
+            )
+        else:
+            cursor = await self._conn.execute(
+                """SELECT * FROM chat_messages WHERE session_id = ? ORDER BY id ASC LIMIT ?""",
+                (session_id, limit)
+            )
         rows = await cursor.fetchall()
         return [
             {
@@ -264,11 +282,19 @@ class Storage:
             for r in rows
         ]
 
-    async def get_sessions(self) -> list[dict]:
-        cursor = await self._conn.execute(
-            """SELECT session_id, MAX(id) as last_id, MAX(timestamp) as last_time
-               FROM chat_messages GROUP BY session_id ORDER BY last_id DESC"""
-        )
+    async def get_sessions(self, user_id: str = None) -> list[dict]:
+        if user_id:
+            cursor = await self._conn.execute(
+                """SELECT session_id, MAX(id) as last_id, MAX(timestamp) as last_time
+                   FROM chat_messages WHERE user_id = ?
+                   GROUP BY session_id ORDER BY last_id DESC""",
+                (user_id,)
+            )
+        else:
+            cursor = await self._conn.execute(
+                """SELECT session_id, MAX(id) as last_id, MAX(timestamp) as last_time
+                   FROM chat_messages GROUP BY session_id ORDER BY last_id DESC"""
+            )
         rows = await cursor.fetchall()
         return [
             {
@@ -278,23 +304,36 @@ class Storage:
             for r in rows
         ]
 
-    async def get_session_title(self, session_id: str) -> str:
-        cursor = await self._conn.execute(
-            """SELECT content FROM chat_messages
-               WHERE session_id = ? AND role = 'user'
-               ORDER BY id ASC LIMIT 1""",
-            (session_id,)
-        )
+    async def get_session_title(self, session_id: str, user_id: str = None) -> str:
+        if user_id:
+            cursor = await self._conn.execute(
+                """SELECT content FROM chat_messages
+                   WHERE session_id = ? AND role = 'user' AND user_id = ?
+                   ORDER BY id ASC LIMIT 1""",
+                (session_id, user_id)
+            )
+        else:
+            cursor = await self._conn.execute(
+                """SELECT content FROM chat_messages
+                   WHERE session_id = ? AND role = 'user'
+                   ORDER BY id ASC LIMIT 1""",
+                (session_id,)
+            )
         row = await cursor.fetchone()
         if row and row["content"]:
             text = row["content"]
             return text[:30] + ("..." if len(text) > 30 else "")
         return "新对话"
 
-    async def delete_session(self, session_id: str):
+    async def delete_session(self, session_id: str, user_id: str = None):
         """删除会话"""
-        await self._conn.execute(
-            "DELETE FROM chat_messages WHERE session_id = ?", (session_id,))
+        if user_id:
+            await self._conn.execute(
+                "DELETE FROM chat_messages WHERE session_id = ? AND user_id = ?",
+                (session_id, user_id))
+        else:
+            await self._conn.execute(
+                "DELETE FROM chat_messages WHERE session_id = ?", (session_id,))
         await self._conn.commit()
 
     # ==================== 服务器操作 ====================
@@ -402,3 +441,52 @@ class Storage:
         )
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
+
+    # ==================== 用户操作 ====================
+
+    async def create_user(self, user: "User") -> "User":
+        """创建用户"""
+        user.created_at = now_str()
+        await self._conn.execute(
+            """INSERT INTO users (id, username, password_hash, display_name, role, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (user.id, user.username, user.password_hash,
+             user.display_name, user.role, user.created_at)
+        )
+        await self._conn.commit()
+        return user
+
+    async def get_user(self, user_id: str = None, username: str = None) -> Optional["User"]:
+        """获取用户，支持按ID或用户名查找"""
+        if user_id:
+            cursor = await self._conn.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+        elif username:
+            cursor = await self._conn.execute("SELECT * FROM users WHERE username = ?", (username,))
+        else:
+            return None
+        row = await cursor.fetchone()
+        if row:
+            return User(**dict(row))
+        return None
+
+    async def get_users(self) -> list["User"]:
+        """获取所有用户"""
+        cursor = await self._conn.execute("SELECT * FROM users ORDER BY created_at DESC")
+        rows = await cursor.fetchall()
+        return [User(**dict(r)) for r in rows]
+
+    async def update_user(self, user_id: str, updates: dict) -> Optional["User"]:
+        """更新用户信息"""
+        if not updates:
+            return await self.get_user(user_id=user_id)
+        sets = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values()) + [user_id]
+        await self._conn.execute(f"UPDATE users SET {sets} WHERE id = ?", values)
+        await self._conn.commit()
+        return await self.get_user(user_id=user_id)
+
+    async def delete_user(self, user_id: str) -> bool:
+        """删除用户"""
+        cursor = await self._conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        await self._conn.commit()
+        return cursor.rowcount > 0

@@ -1,2 +1,7 @@
 test_call.py
 .venv/
+__pycache__/
+*.pyc
+*.bak
+data/
+.env

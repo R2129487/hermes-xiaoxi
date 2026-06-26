@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/dispatcher_api.dart';
-import '../main.dart';
+import '../main.dart' show themeNotifier, api;
+import '../models/user.dart';
+import 'login_screen.dart';
 
 /// 设置页面
 class SettingsScreen extends StatefulWidget {
@@ -11,7 +13,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final DispatcherApi _api = DispatcherApi();
   final _hostCtrl = TextEditingController(text: '192.168.1.6');
   final _portCtrl = TextEditingController(text: '8767');
   bool _connected = false;
@@ -32,15 +33,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _checkConnection() async {
     setState(() => _checking = true);
-    _connected = await _api.checkConnection();
+    _connected = await api.checkConnection();
     if (mounted) setState(() => _checking = false);
   }
 
   Future<void> _connect() async {
     final host = _hostCtrl.text.trim();
     final port = int.tryParse(_portCtrl.text.trim()) ?? 8767;
-    _api.setServer(host, port);
+    api.setServer(host, port);
     await _checkConnection();
+  }
+
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('退出登录'),
+        content: const Text('确定要退出登录吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('退出'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await api.logout();
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => LoginScreen(api: api)),
+          (_) => false,
+        );
+      }
+    }
   }
 
   @override
@@ -143,6 +174,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          // 用户管理（仅 admin 可见）
+          if (api.currentUser?.role == 'admin')
+            Card(
+              child: ListTile(
+                leading: Icon(Icons.people, color: Colors.grey[600]),
+                title: const Text('用户管理', style: TextStyle(fontSize: 15)),
+                subtitle: const Text('查看和管理所有用户', style: TextStyle(fontSize: 12)),
+                trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
+                onTap: () async {
+                  final changed = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => _UserManagementScreen(api: api)),
+                  );
+                  if (changed == true) setState(() {});
+                },
+              ),
+            ),
+          if (api.currentUser?.role == 'admin') const SizedBox(height: 16),
+          // 退出登录按钮
+          Card(
+            child: ListTile(
+              leading: Icon(Icons.logout, color: Colors.red[400]),
+              title: const Text('退出登录', style: TextStyle(color: Colors.red, fontSize: 15)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _logout,
+            ),
+          ),
+          const SizedBox(height: 16),
           // 关于卡片
           Card(
             child: Padding(
@@ -184,6 +243,122 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _hostCtrl.text = host;
         _portCtrl.text = port;
       },
+    );
+  }
+}
+
+/// 用户管理页面 — 仅 admin 可用
+class _UserManagementScreen extends StatefulWidget {
+  final DispatcherApi api;
+  const _UserManagementScreen({required this.api});
+
+  @override
+  State<_UserManagementScreen> createState() => _UserManagementScreenState();
+}
+
+class _UserManagementScreenState extends State<_UserManagementScreen> {
+  DispatcherApi get _api => widget.api;
+  List<User> _users = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+  }
+
+  Future<void> _loadUsers() async {
+    setState(() => _loading = true);
+    final users = await _api.getUsers();
+    if (mounted) setState(() { _users = users; _loading = false; });
+  }
+
+  String _roleLabel(String role) {
+    switch (role) {
+      case 'admin': return '管理员';
+      case 'operator': return '操作员';
+      case 'observer': return '观察员';
+      default: return role;
+    }
+  }
+
+  Color _roleColor(String role) {
+    switch (role) {
+      case 'admin': return Colors.red;
+      case 'operator': return Colors.blue;
+      case 'observer': return Colors.grey;
+      default: return Colors.grey;
+    }
+  }
+
+  void _showRolePicker(User user) async {
+    final currentRole = user.role;
+    final newRole = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text('修改 ${user.displayName} 的角色'),
+        children: ['operator', 'observer', 'admin'].map<Widget>((r) {
+          return SimpleDialogOption(
+            child: Row(
+              children: [
+                Icon(Icons.check, size: 16,
+                    color: r == currentRole ? Colors.green : Colors.transparent),
+                const SizedBox(width: 8),
+                Text('${_roleLabel(r)}${r == currentRole ? '（当前）' : ''}'),
+              ],
+            ),
+            onPressed: () => Navigator.pop(ctx, r == currentRole ? null : r),
+          );
+        }).toList(),
+      ),
+    );
+    if (newRole != null && mounted) {
+      final ok = await _api.updateUser(user.id, {'role': newRole});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ok ? '✅ 已更新角色' : '❌ 更新失败')),
+        );
+        if (ok) _loadUsers();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Scaffold(
+      appBar: AppBar(title: const Text('用户管理')),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadUsers,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _users.length,
+                itemBuilder: (_, i) {
+                  final u = _users[i];
+                  return Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: _roleColor(u.role),
+                        child: Text(
+                          u.displayName.isNotEmpty ? u.displayName[0] : u.username[0],
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      title: Text(u.displayName.isNotEmpty ? u.displayName : u.username),
+                      subtitle: Text('@${u.username} · ${_roleLabel(u.role)}'),
+                      trailing: u.id != _api.currentUser?.id
+                          ? IconButton(
+                              icon: Icon(Icons.admin_panel_settings, color: Colors.grey[400]),
+                              onPressed: () => _showRolePicker(u),
+                            )
+                          : const Chip(label: Text('自己', style: TextStyle(fontSize: 11))),
+                    ),
+                  );
+                },
+              ),
+            ),
     );
   }
 }

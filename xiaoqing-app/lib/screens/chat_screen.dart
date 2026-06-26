@@ -63,16 +63,18 @@ class _ConversationListState extends State<ConversationList> {
   }
 
   // ─── 分组提取 ───
-  List<Agent> get _dispatchers => _agents.where((a) => a.agentId == 'dispatcher').toList();
+  List<Agent> get _dispatchers => _agents.where((a) => a.type == 'dispatcher').toList();
   List<Agent> get _pinnedOnline =>
-      _agents.where((a) => a.agentId != 'dispatcher' && (a.pinned || a.online)).toList();
+      _agents.where((a) => a.type == 'agent' && (a.pinned || a.online)).toList();
+  List<Agent> get _users =>
+      _agents.where((a) => a.type == 'user' && (a.pinned || a.online)).toList();
   List<Agent> get _offline =>
-      _agents.where((a) => a.agentId != 'dispatcher' && !a.pinned && !a.online).toList();
+      _agents.where((a) => a.type == 'agent' && !a.pinned && !a.online).toList();
 
   Widget _buildSectionHeader(String title, {bool top = false}) {
     return Container(
       padding: EdgeInsets.fromLTRB(16, top ? 4 : 16, 16, 4),
-      color: const Color(0xFFF7F7F7),
+      color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1A1A1A) : const Color(0xFFF7F7F7),
       child: Text(
         title,
         style: TextStyle(color: Colors.grey[500], fontSize: 12, fontWeight: FontWeight.w500),
@@ -103,8 +105,8 @@ class _ConversationListState extends State<ConversationList> {
         )).then((_) => _loadData());
       },
       child: Container(
-        color: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        color: Theme.of(context).cardColor,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
             // 头像 + 在线状态
@@ -215,9 +217,14 @@ class _ConversationListState extends State<ConversationList> {
                         _buildSectionHeader('调度员', top: true),
                         ..._dispatchers.map((a) => _buildChatTile(a)),
                       ],
+                      // ─── 用户 ───
+                      if (_users.isNotEmpty) ...[
+                        _buildSectionHeader('用户 (${_users.length})'),
+                        ..._users.map((a) => _buildChatTile(a)),
+                      ],
                       // ─── 在线 / 置顶 ───
                       if (_pinnedOnline.isNotEmpty) ...[
-                        _buildSectionHeader('在线 (${_pinnedOnline.length})'),
+                        _buildSectionHeader('智能体 (${_pinnedOnline.length})'),
                         ..._pinnedOnline.map((a) => _buildChatTile(a)),
                       ],
                       // ─── 离线 ───

@@ -30,6 +30,7 @@ class Agent(BaseModel):
     id: str = Field(default="", description="智能体唯一ID")
     name: str = Field(default="", description="智能体名称")
     nickname: str = Field(default="", description="用户自定义备注名")
+    type: str = Field(default="agent", description="类型: dispatcher/agent/user")
     avatar_color: int = Field(default=0xFF888888, description="头像颜色 ARGB")
     pinned: bool = Field(default=False, description="是否置顶")
     capabilities: str = Field(default="", description="能力列表(逗号分隔)")
@@ -69,6 +70,16 @@ class TaskLog(BaseModel):
     timestamp: Optional[str] = Field(default=None, description="日志时间")
 
 
+class User(BaseModel):
+    """用户数据模型"""
+    id: str = Field(default="", description="用户ID")
+    username: str = Field(default="", description="用户名，用于登录")
+    password_hash: str = Field(default="", description="密码哈希")
+    display_name: str = Field(default="", description="显示名称")
+    role: str = Field(default="operator", description="角色: admin/operator/observer")
+    created_at: Optional[str] = Field(default=None, description="创建时间")
+
+
 # SQL 建表语句
 CREATE_TABLES_SQL = """
 CREATE TABLE IF NOT EXISTS tasks (
@@ -99,6 +110,7 @@ CREATE TABLE IF NOT EXISTS memory (
 CREATE TABLE IF NOT EXISTS agents (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL DEFAULT '',
+    type TEXT DEFAULT 'agent',
     capabilities TEXT DEFAULT '',
     status TEXT DEFAULT 'offline',
     current_load INTEGER DEFAULT 0,
@@ -143,6 +155,15 @@ CREATE TABLE IF NOT EXISTS servers (
     location TEXT DEFAULT '',
     status TEXT DEFAULT 'offline',
     remark TEXT,
+    created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL DEFAULT '',
+    display_name TEXT NOT NULL DEFAULT '',
+    role TEXT NOT NULL DEFAULT 'operator',
     created_at TEXT
 );
 

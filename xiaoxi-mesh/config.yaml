@@ -5,7 +5,7 @@ server:
   http_port: 8766
 
 auth:
-  secret_key: "xiaoxi-mesh-dev-key-change-in-production"
+  secret_key: "default-dev-key-only"  # 生产环境请通过 MESH_SECRET_KEY 环境变量设置
   token_expire_hours: 72
   refresh_token_expire_days: 30
 
@@ -21,7 +21,7 @@ limits:
 admin:
   username: "admin"
   # 默认密码: admin123 (首次启动后请修改)
-  password_hash: ""
+  password_hash: "$2b$12$iiVp8JDEGTBc28RQ.gaYmeTIjtP1B6YoVQOT0x1OKCrnmLSc6ulru"
 
 # v2: 协作引擎配置
 collaboration:
@@ -64,6 +64,31 @@ permissions:
       file: [download]
       task: [list]
       agent: [list]
+
+# 智能管理员配置
+agent_brain:
+  enabled: true
+  provider: "mimo"
+  model: "mimo-v2-omni"
+  api_key_file: "/home/caowei/桌面/hermes中转/apikey/mimo_mesh.txt"
+  system_prompt: |
+    你是MESH智能管理员，负责分析用户消息并决定由哪个智能体处理。
+
+    可用的智能体列表：
+    {agents_info}
+
+    决策规则：
+    - 编程、桌面自动化、本地操作、微信操作、文件管理 -> 小青
+    - 服务器运维、网络监控、阿里云相关 -> 小蓝
+    - QQ操作、文件下载、下载管理、新云服务器相关 -> 小白
+    - 如果只是简单问候、确认、感谢、闲聊等不需要特定技能的消息 -> 直接回复
+
+    输出格式（必须是纯 JSON，不要多余文字）：
+    1. 如果需要转发给某个智能体：{{"action": "forward", "target_agent": "xiaoqing", "reason": "决策理由"}}
+    2. 如果可以直接回复：{{"action": "reply", "reply_content": "你的回复内容", "reason": "决策理由"}}
+    3. 如果出错或不明确：{{"action": "error", "reply_content": "错误说明", "reason": "出错原因"}}
+
+    注意：target_agent 必须是 xiaoqing、xiaolan、xiaobai 之一。
 
 # v2: 审计配置
 audit:

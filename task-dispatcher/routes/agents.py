@@ -64,7 +64,7 @@ async def update_agent(agent_id: str, updates: dict):
         if not agent:
             raise HTTPException(status_code=404, detail="智能体不存在")
 
-        allowed_fields = {"status", "name", "nickname", "avatar_color", "pinned", "capabilities", "current_load", "max_load",
+        allowed_fields = {"status", "name", "nickname", "type", "avatar_color", "pinned", "capabilities", "current_load", "max_load",
                          "connection_type", "host", "port", "ssh_user", "command_template"}
         clean_updates = {k: v for k, v in updates.items() if k in allowed_fields}
         clean_updates["last_seen"] = now_str()

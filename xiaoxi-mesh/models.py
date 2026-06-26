@@ -5,8 +5,21 @@
 from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Optional, List
 from pydantic import BaseModel, Field
+
+
+class TaskStatus(str, Enum):
+    """任务状态枚举"""
+    PENDING = "pending"               # 待分配
+    REQUESTING = "requesting"         # 已发送请求，等待确认
+    ACCEPTED = "accepted"             # 接收方已接受
+    REJECTED = "rejected"             # 接收方已拒绝
+    EXECUTING = "executing"           # 执行中
+    COMPLETED = "completed"           # 已完成
+    FAILED = "failed"                 # 失败
+    TIMED_OUT = "timed_out"           # 确认超时
 
 
 def _now() -> datetime:
@@ -159,6 +172,24 @@ class CapabilityUpdate(BaseModel):
     """能力更新请求"""
     capabilities: List[str] = Field(default_factory=list)
     specialties: List[str] = Field(default_factory=list)
+
+
+# ── 任务确认机制 (v3) ──
+
+class TaskRequest(BaseModel):
+    """任务请求 — 发送方发给接收方，等待 ACCEPT/REJECT"""
+    task_id: str = Field(default_factory=_uuid)
+    description: str
+    required_capability: str = ""
+    from_agent: str = ""
+    timeout: float = 10.0  # 确认超时(秒)
+
+
+class TaskResponse(BaseModel):
+    """任务响应 — 接收方回复 ACCEPT/REJECT"""
+    task_id: str
+    status: str = "accepted"  # accepted | rejected
+    reason: str = ""
 
 
 # ── 统一响应 ──

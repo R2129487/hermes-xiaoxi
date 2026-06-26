@@ -75,7 +75,7 @@ class _AgentSettingsScreenState extends State<AgentSettingsScreen> {
   Widget build(BuildContext context) {
     final a = widget.agent;
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, size: 20),

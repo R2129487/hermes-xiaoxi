@@ -130,7 +130,7 @@ class _ChatDetailState extends State<ChatDetail> {
     final ctx = context;
     await showModalBottomSheet(
       context: ctx,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
@@ -305,7 +305,7 @@ class _ChatDetailState extends State<ChatDetail> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFEDEDED),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, size: 20),
@@ -327,7 +327,7 @@ class _ChatDetailState extends State<ChatDetail> {
           ],
         ),
         centerTitle: true,
-        backgroundColor: const Color(0xFFEDEDED),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         surfaceTintColor: Colors.transparent,
       ),
       body: Column(

@@ -52,6 +52,15 @@ DEFAULT_PERMISSIONS = {
         "admin": [],
         "token": [],
     },
+    "user": {
+        "message": ["send", "receive"],
+        "file": ["upload", "download"],
+        "command": [],
+        "task": ["create", "list"],
+        "agent": ["list"],
+        "admin": [],
+        "token": [],
+    },
 }
 
 
@@ -146,4 +155,4 @@ class PermissionManager:
     @staticmethod
     def is_valid_role(role: str) -> bool:
         """检查角色名是否有效"""
-        return role in ("admin", "agent", "external", "readonly")
+        return role in ("admin", "agent", "external", "readonly", "user")

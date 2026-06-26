@@ -206,15 +206,14 @@ static void voice_task(void *arg) {
                 ESP_LOGI(TAG, "Wake word detected: %s", ww.c_str());
                 run_voice_interaction_with_wakeword();
             });
+            // 原子性地注册全局唤醒词指针（在Start之前，避免竞态）
+            {
+                std::lock_guard<std::mutex> lock(s_wake_word_mutex);
+                s_wake_word = wake_word;
+            }
             wake_word->Start();
             ESP_LOGI(TAG, "Wake word detection started: '你好小鑫'");
         }
-    }
-
-    // 原子性地注册全局唤醒词指针
-    {
-        std::lock_guard<std::mutex> lock(s_wake_word_mutex);
-        s_wake_word = wake_word;
     }
 
     // 注册按钮回调（使用带重入保护的封装）
