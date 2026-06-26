@@ -40,8 +40,12 @@ class MeshClient:
         self._on_task: Optional[Callable] = None
         self._on_agent_call: Optional[Callable] = None
         self._on_capability_update: Optional[Callable] = None
+        self._on_task_request: Optional[Callable] = None
+        self._on_task_response: Optional[Callable] = None
         self._capabilities: list[str] = []
         self._specialties: list[str] = []
+        # 任务确认等待表: task_id → asyncio.Future
+        self._pending_confirmations: dict = {}
 
     # ── 事件回调 ──
 
@@ -68,6 +72,16 @@ class MeshClient:
     def on_capability_update(self, callback: Callable):
         """能力更新回调: callback(data: dict)"""
         self._on_capability_update = callback
+        return self
+
+    def on_task_request(self, callback: Callable):
+        """收到任务请求回调: callback(data: dict)"""
+        self._on_task_request = callback
+        return self
+
+    def on_task_response(self, callback: Callable):
+        """收到任务响应回调: callback(data: dict)"""
+        self._on_task_response = callback
         return self
 
     # ── 能力管理 ──
@@ -167,6 +181,72 @@ class MeshClient:
             payload["metadata"] = {"params": params}
         await self.ws.send(json.dumps(payload))
 
+    # ── 任务确认机制 ──
+
+    async def send_task_request(self, target_id: str, task_id: str,
+                                 description: str, required_capability: str = "",
+                                 timeout: float = 10.0):
+        """发送任务请求（需要对方确认）
+
+        Args:
+            target_id: 目标智能体 ID
+            task_id: 任务 ID
+            description: 任务描述
+            required_capability: 所需能力
+            timeout: 确认超时(秒)
+        """
+        if not self.ws:
+            log.warning("未连接，任务请求未发送")
+            return
+        await self.ws.send(json.dumps({
+            "type": "task_request",
+            "to": target_id,
+            "task_id": task_id,
+            "description": description,
+            "required_capability": required_capability,
+            "from_agent": self.agent_id,
+            "timeout": timeout,
+        }))
+
+    async def send_task_response(self, target_id: str, task_id: str,
+                                  status: str = "accepted", reason: str = ""):
+        """发送任务响应（ACCEPT/REJECT）
+
+        Args:
+            target_id: 发送方智能体 ID
+            task_id: 任务 ID
+            status: "accepted" 或 "rejected"
+            reason: 拒绝原因（可选）
+        """
+        if not self.ws:
+            log.warning("未连接，任务响应未发送")
+            return
+        await self.ws.send(json.dumps({
+            "type": "task_response",
+            "to": target_id,
+            "task_id": task_id,
+            "status": status,
+            "reason": reason,
+        }))
+
+    async def wait_for_task_confirmation(self, task_id: str,
+                                          timeout: float = 10.0) -> dict:
+        """等待任务确认（阻塞直到收到响应或超时）
+
+        Returns:
+            {"status": "accepted"/"rejected"/"timed_out", "reason": "..."}
+        """
+        loop = asyncio.get_event_loop()
+        future = loop.create_future()
+        self._pending_confirmations[task_id] = future
+        try:
+            result = await asyncio.wait_for(future, timeout=timeout)
+            return result
+        except asyncio.TimeoutError:
+            return {"status": "timed_out", "reason": f"等待确认超时({timeout}s)"}
+        finally:
+            self._pending_confirmations.pop(task_id, None)
+
     # ── HTTP API 方法 ──
 
     async def query_task(self, task_id: str) -> Optional[dict]:
@@ -203,11 +283,12 @@ class MeshClient:
 
     async def connect(self):
         """连接到消息服务器（自动重连，连接后自动上报能力）"""
-        uri = f"{self.server_url}/ws/{self.agent_id}?token={self.token}"
+        uri = f"{self.server_url}/ws/{self.agent_id}"
+        headers = {"Authorization": f"Bearer {self.token}"}
         self._running = True
         while self._running:
             try:
-                self.ws = await websockets.connect(uri, ping_interval=30)
+                self.ws = await websockets.connect(uri, ping_interval=30, extra_headers=headers)
                 log.info(f"[{self.agent_id}] 已连接到消息服务器")
 
                 # 连接后自动上报能力
@@ -267,55 +348,79 @@ class MeshClient:
     # ── 内部 ──
 
     async def _listen(self):
-        """消息监听循环"""
-        async for raw in self.ws:
-            try:
-                data = json.loads(raw)
-            except json.JSONDecodeError:
-                continue
+        """消息监听循环（连接断开后自动清理待确认任务）"""
+        try:
+            async for raw in self.ws:
+                try:
+                    data = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
 
-            msg_type = data.get("type", "")
+                msg_type = data.get("type", "")
 
-            if msg_type == "pong":
-                continue
+                if msg_type == "pong":
+                    continue
 
-            elif msg_type == "message":
-                msg_data = data.get("data", {})
-                log.info(f"[{self.agent_id}] 收到来自 {msg_data.get('from_id')} 的消息")
-                if self._on_message:
-                    await self._safe_call(self._on_message, msg_data)
+                elif msg_type == "message":
+                    msg_data = data.get("data", {})
+                    log.info(f"[{self.agent_id}] 收到来自 {msg_data.get('from_id')} 的消息")
+                    if self._on_message:
+                        await self._safe_call(self._on_message, msg_data)
 
-            elif msg_type == "status":
-                status_data = data.get("data", {})
-                if self._on_status:
-                    await self._safe_call(self._on_status, status_data)
+                elif msg_type == "status":
+                    status_data = data.get("data", {})
+                    if self._on_status:
+                        await self._safe_call(self._on_status, status_data)
 
-            elif msg_type == "task":
-                task_data = data.get("data", {})
-                log.info(f"[{self.agent_id}] 收到任务: {task_data.get('task_id')}")
-                if self._on_task:
-                    await self._safe_call(self._on_task, task_data)
+                elif msg_type == "task":
+                    task_data = data.get("data", {})
+                    log.info(f"[{self.agent_id}] 收到任务: {task_data.get('task_id')}")
+                    if self._on_task:
+                        await self._safe_call(self._on_task, task_data)
 
-            elif msg_type == "agent_call":
-                call_data = data.get("data", {})
-                log.info(f"[{self.agent_id}] 收到来自 {call_data.get('from_id')} 的调用")
-                if self._on_agent_call:
-                    await self._safe_call(self._on_agent_call, call_data)
+                elif msg_type == "agent_call":
+                    call_data = data.get("data", {})
+                    log.info(f"[{self.agent_id}] 收到来自 {call_data.get('from_id')} 的调用")
+                    if self._on_agent_call:
+                        await self._safe_call(self._on_agent_call, call_data)
 
-            elif msg_type == "capability_update":
-                cap_data = data.get("data", {})
-                if self._on_capability_update:
-                    await self._safe_call(self._on_capability_update, cap_data)
+                elif msg_type == "capability_update":
+                    cap_data = data.get("data", {})
+                    if self._on_capability_update:
+                        await self._safe_call(self._on_capability_update, cap_data)
 
-            elif msg_type == "discovery_result":
-                result_data = data.get("data", [])
-                log.info(f"[{self.agent_id}] 能力发现结果: {len(result_data)} 条")
+                elif msg_type == "task_request":
+                    req_data = data.get("data", {})
+                    log.info(f"[{self.agent_id}] 收到任务请求: {req_data.get('task_id')}")
+                    if self._on_task_request:
+                        await self._safe_call(self._on_task_request, req_data)
 
-            elif msg_type == "error":
-                log.warning(f"[{self.agent_id}] 服务端错误: {data.get('message')}")
+                elif msg_type == "task_response":
+                    resp_data = data.get("data", {})
+                    log.info(f"[{self.agent_id}] 收到任务响应: {resp_data.get('task_id')} -> {resp_data.get('status')}")
+                    # 解除 wait_for_task_confirmation 的等待
+                    task_id = resp_data.get("task_id", "")
+                    future = self._pending_confirmations.get(task_id)
+                    if future and not future.done():
+                        future.set_result(resp_data)
+                    if self._on_task_response:
+                        await self._safe_call(self._on_task_response, resp_data)
 
-            elif msg_type in ("sent", "task_created", "task_updated", "call_sent"):
-                pass  # 确认消息，静默处理
+                elif msg_type == "discovery_result":
+                    result_data = data.get("data", [])
+                    log.info(f"[{self.agent_id}] 能力发现结果: {len(result_data)} 条")
+
+                elif msg_type == "error":
+                    log.warning(f"[{self.agent_id}] 服务端错误: {data.get('message')}")
+
+                elif msg_type in ("sent", "task_created", "task_updated", "call_sent"):
+                    pass  # 确认消息，静默处理
+        finally:
+            # 连接断开，清理所有待确认的 Future（防止协程泄漏）
+            for task_id, future in list(self._pending_confirmations.items()):
+                if not future.done():
+                    future.set_exception(ConnectionError("WebSocket 连接已断开"))
+            self._pending_confirmations.clear()
 
     async def _safe_call(self, callback, *args):
         try:

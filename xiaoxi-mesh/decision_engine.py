@@ -78,6 +78,12 @@ KEYWORD_TO_CAPABILITY: list[tuple[list[str], str]] = [
     # 任务调度
     (["调度", "定时", "cron", "计划", "排程", "schedule"],
      "task_scheduling"),
+    # GitHub推送
+    (["github", "推送", "push", "git", "仓库", "repo", "提交代码"],
+     "github_push"),
+    # 升级更新
+    (["升级", "更新", "upgrade", "update", "版本", "最新"],
+     "ssh_operations"),  # 升级需要SSH到各机器执行
 ]
 
 

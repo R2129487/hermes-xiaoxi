@@ -178,12 +178,12 @@ class TaskDelegator:
             return
         try:
             await self._broadcast_fn(task.assigned_to, {
-                "type": "task",
+                "type": "task_request",
                 "data": {
                     "task_id": task.task_id,
                     "description": task.description,
-                    "assigned_by": task.assigned_by,
-                    "required_capabilities": task.required_capabilities,
+                    "from_agent": task.assigned_by,
+                    "required_capability": task.required_capabilities[0] if task.required_capabilities else "",
                 }
             })
             log.info(f"已通知智能体 {task.assigned_to} 接受任务 {task.task_id}")

@@ -29,6 +29,7 @@ static TaskHandle_t s_uvc_frame_task = NULL;
 static QueueHandle_t s_frame_queue = NULL;
 static SemaphoreHandle_t s_capture_done = NULL;
 static uvc_host_frame_t *s_captured_frame = NULL;
+static uvc_host_stream_hdl_t s_uvc_stream = NULL;
 static bool s_capture_success = false;
 
 // === USB 事件处理任务 ===
@@ -144,9 +145,7 @@ static void capture_frame_task(void *arg) {
         s_capture_success = false;
     }
 
-    // 停止流
-    uvc_host_stream_stop(uvc_stream);
-    uvc_host_stream_close(uvc_stream);
+    s_uvc_stream = uvc_stream;
 
     if (s_capture_done) {
         xSemaphoreGive(s_capture_done);
@@ -254,10 +253,10 @@ bool Camera::Capture(VisionFrame &frame) {
                 frame.len = s_captured_frame->data_len;
                 frame.timestamp = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
             }
-            // 归还帧
-            // 注意：这里没有 uvc_stream handle 了，但 frame 必须归还
-            // 简化处理：我们已经在 capture_frame_task 中关闭了流
-            uvc_host_frame_return(NULL, s_captured_frame);
+            uvc_host_frame_return(s_uvc_stream, s_captured_frame);
+            uvc_host_stream_stop(s_uvc_stream);
+            uvc_host_stream_close(s_uvc_stream);
+            s_uvc_stream = NULL;
             return frame.data != NULL;
         }
     }

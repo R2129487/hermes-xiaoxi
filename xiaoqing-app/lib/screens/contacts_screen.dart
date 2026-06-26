@@ -54,9 +54,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
     });
   }
 
-  // 从列表中分离调度员和其他成员
-  List<Agent> get _dispatchers => _filtered.where((a) => a.agentId == 'dispatcher').toList();
-  List<Agent> get _members => _filtered.where((a) => a.agentId != 'dispatcher').toList();
+  // 从列表中分离调度员、智能体、用户
+  List<Agent> get _dispatchers => _filtered.where((a) => a.type == 'dispatcher').toList();
+  List<Agent> get _agentList => _filtered.where((a) => a.type == 'agent').toList();
+  List<Agent> get _userList => _filtered.where((a) => a.type == 'user').toList();
 
   String _agentAvatar(String id) {
     switch (id) {
@@ -75,7 +76,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       children: [
         // 搜索栏
         Container(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
           child: Container(
             height: 36,
@@ -112,10 +113,15 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         _buildSectionHeader('调度员', 'top'),
                         ..._dispatchers.map((a) => _buildAgentTile(a)),
                       ],
-                      // ─── 成员 ───
-                      if (_members.isNotEmpty) ...[
-                        _buildSectionHeader('成员 (${_members.length})', 'bottom'),
-                        ..._members.map((a) => _buildAgentTile(a)),
+                      // ─── 智能体 ───
+                      if (_agentList.isNotEmpty) ...[
+                        _buildSectionHeader('智能体 (${_agentList.length})', 'bottom'),
+                        ..._agentList.map((a) => _buildAgentTile(a)),
+                      ],
+                      // ─── 用户 ───
+                      if (_userList.isNotEmpty) ...[
+                        _buildSectionHeader('用户 (${_userList.length})', 'bottom'),
+                        ..._userList.map((a) => _buildAgentTile(a)),
                       ],
                       // ─── 搜索无结果 ───
                       if (_filtered.isEmpty && !_loading)
@@ -157,7 +163,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   Widget _buildSectionHeader(String title, String pos) {
     return Container(
       padding: EdgeInsets.fromLTRB(16, pos == 'top' ? 4 : 16, 16, 4),
-      color: const Color(0xFFF7F7F7),
+      color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1A1A1A) : const Color(0xFFF7F7F7),
       child: Text(
         title,
         style: TextStyle(color: Colors.grey[500], fontSize: 12, fontWeight: FontWeight.w500),
@@ -187,7 +193,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       },
       onLongPress: () => _openSettings(a),
       child: Container(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           children: [

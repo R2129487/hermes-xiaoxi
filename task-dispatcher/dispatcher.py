@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from storage import Storage
 from dispatcher_core import DispatcherCore
-from models import Agent, TaskLog
+from models import Agent, TaskLog, User
 from web_ui import get_web_html
 from web_chat import get_chat_html
 from web_config import get_config_html
@@ -389,6 +389,27 @@ async def lifespan(app: FastAPI):
     import routes.servers as servers_route
     servers_route.storage = storage
 
+    # 注入存储到认证路由
+    import routes.auth as auth_route
+    auth_route.storage = storage
+
+    # 创建默认管理员用户
+    print("[Dispatcher] 初始化默认用户...")
+    existing_admin = await storage.get_user(username="admin")
+    if not existing_admin:
+        import bcrypt, uuid
+        admin_user = User(
+            id=str(uuid.uuid4())[:8],
+            username="admin",
+            password_hash=bcrypt.hashpw(b"admin123", bcrypt.gensalt()).decode(),
+            display_name="管理员",
+            role="admin",
+        )
+        await storage.create_user(admin_user)
+        print(f"  ✓ 默认管理员已创建（admin / admin123）")
+    else:
+        print(f"  ✓ 管理员用户已存在")
+
     # 预填默认记忆（各智能体职责）
     print("[Dispatcher] 初始化记忆...")
     default_memories = [
@@ -438,6 +459,7 @@ async def _register_default_agents():
             id="dispatcher",
             name="调度员",
             nickname="",
+            type="dispatcher",
             avatar_color=0xFF3498db,
             capabilities="任务调度,任务管理,任务跟踪,任务分配",
             status="online",
@@ -626,6 +648,8 @@ app.include_router(config_router)
 app.include_router(memory_router)
 from routes.servers import router as servers_router
 app.include_router(servers_router)
+from routes.auth import router as auth_router
+app.include_router(auth_router)
 
 # ==================== 文件上传 ====================
 

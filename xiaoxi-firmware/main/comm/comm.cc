@@ -95,13 +95,19 @@ void AgentClient::Asr(const uint8_t *pcm_data, size_t pcm_len, int sample_rate) 
     esp_http_client_set_post_field(client, (const char *)wav, wav_len);
 
     esp_err_t err = esp_http_client_perform(client);
+    int status = 0;
     if (err == ESP_OK) {
-        int status = esp_http_client_get_status_code(client);
-        int len = esp_http_client_get_content_length(client);
-        if (len > 0) {
-            std::string resp(len, '\0');
-            esp_http_client_read(client, &resp[0], len);
-            ESP_LOGI(TAG, "ASR [%d]: %s", status, resp.c_str());
+        status = esp_http_client_get_status_code(client);
+    }
+    if (err == ESP_OK && status == 200) {
+        std::string resp;
+        char buf[256];
+        int n;
+        while ((n = esp_http_client_read(client, buf, sizeof(buf))) > 0) {
+            resp.append(buf, n);
+        }
+        ESP_LOGI(TAG, "ASR [%d]: %s", status, resp.c_str());
+        if (!resp.empty()) {
             cJSON *json = cJSON_Parse(resp.c_str());
             if (json) {
                 cJSON *text = cJSON_GetObjectItem(json, "text");
@@ -112,7 +118,7 @@ void AgentClient::Asr(const uint8_t *pcm_data, size_t pcm_len, int sample_rate) 
             }
         }
     } else {
-        ESP_LOGE(TAG, "ASR HTTP failed: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "ASR HTTP failed [%d]: %s", status, esp_err_to_name(err));
     }
 
     esp_http_client_cleanup(client);
@@ -157,46 +163,53 @@ void AgentClient::Chat(const AgentMessage *messages, int count) {
     esp_http_client_set_post_field(client, json_str, strlen(json_str));
 
     esp_err_t err = esp_http_client_perform(client);
+    int status = 0;
     if (err == ESP_OK) {
-        int len = esp_http_client_get_content_length(client);
-        if (len > 0) {
-            std::string resp(len, '\0');
-            esp_http_client_read(client, &resp[0], len);
-
-            std::string full_text;
-            size_t pos = 0;
-            while (pos < resp.size()) {
-                size_t line_start = resp.find("data: ", pos);
-                if (line_start == std::string::npos) break;
-                line_start += 6;
-                size_t line_end = resp.find('\n', line_start);
-                if (line_end == std::string::npos) line_end = resp.size();
-                std::string line = resp.substr(line_start, line_end - line_start);
-                pos = line_end + 1;
-                if (line == "[DONE]") break;
-
-                cJSON *chunk = cJSON_Parse(line.c_str());
-                if (chunk) {
-                    cJSON *choices = cJSON_GetObjectItem(chunk, "choices");
-                    if (choices && cJSON_GetArraySize(choices) > 0) {
-                        cJSON *choice = cJSON_GetArrayItem(choices, 0);
-                        cJSON *delta = cJSON_GetObjectItem(choice, "delta");
-                        if (delta) {
-                            cJSON *content = cJSON_GetObjectItem(delta, "content");
-                            if (content && cJSON_IsString(content)) {
-                                full_text += content->valuestring;
-                                if (cb_.on_llm_token) cb_.on_llm_token(content->valuestring);
+        status = esp_http_client_get_status_code(client);
+    }
+    if (err == ESP_OK && status == 200) {
+        std::string full_text;
+        std::string line;
+        char buf[256];
+        int n;
+        bool done = false;
+        while (!done && (n = esp_http_client_read(client, buf, sizeof(buf))) > 0) {
+            for (int i = 0; i < n && !done; i++) {
+                char c = buf[i];
+                if (c == '\n') {
+                    if (line.size() > 6 && line.substr(0, 6) == "data: ") {
+                        std::string data = line.substr(6);
+                        if (data == "[DONE]") {
+                            done = true;
+                            break;
+                        }
+                        cJSON *chunk = cJSON_Parse(data.c_str());
+                        if (chunk) {
+                            cJSON *choices = cJSON_GetObjectItem(chunk, "choices");
+                            if (choices && cJSON_GetArraySize(choices) > 0) {
+                                cJSON *choice = cJSON_GetArrayItem(choices, 0);
+                                cJSON *delta = cJSON_GetObjectItem(choice, "delta");
+                                if (delta) {
+                                    cJSON *content = cJSON_GetObjectItem(delta, "content");
+                                    if (content && cJSON_IsString(content)) {
+                                        full_text += content->valuestring;
+                                        if (cb_.on_llm_token) cb_.on_llm_token(content->valuestring);
+                                    }
+                                }
                             }
+                            cJSON_Delete(chunk);
                         }
                     }
-                    cJSON_Delete(chunk);
+                    line.clear();
+                } else if (c != '\r') {
+                    line += c;
                 }
             }
-            ESP_LOGI(TAG, "Chat reply: %s", full_text.c_str());
-            if (cb_.on_llm_done) cb_.on_llm_done(full_text.c_str());
         }
+        ESP_LOGI(TAG, "Chat reply: %s", full_text.c_str());
+        if (cb_.on_llm_done) cb_.on_llm_done(full_text.c_str());
     } else {
-        ESP_LOGE(TAG, "Chat HTTP failed: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Chat HTTP failed [%d]: %s", status, esp_err_to_name(err));
     }
 
     esp_http_client_cleanup(client);
@@ -237,25 +250,33 @@ void AgentClient::Tts(const char *text) {
     esp_http_client_set_post_field(client, json_str, strlen(json_str));
 
     esp_err_t err = esp_http_client_perform(client);
+    int status = 0;
     if (err == ESP_OK) {
-        int len = esp_http_client_get_content_length(client);
-        if (len > 0 && cb_.on_tts_audio) {
-            size_t total = 0;
-            size_t buf_size = len > 0 ? len : 32768;
-            uint8_t *buf = (uint8_t *)malloc(buf_size);
-            if (buf) {
-                int read;
-                while ((read = esp_http_client_read(client, (char *)buf + total, buf_size - total)) > 0) {
-                    total += read;
-                    if (total >= buf_size) break;
+        status = esp_http_client_get_status_code(client);
+    }
+    if (err == ESP_OK && status == 200 && cb_.on_tts_audio) {
+        size_t total = 0;
+        size_t cap = 2048;
+        uint8_t *buf = (uint8_t *)malloc(cap);
+        if (buf) {
+            int read;
+            while ((read = esp_http_client_read(client, (char *)buf + total, cap - total)) > 0) {
+                total += read;
+                if (total + 1024 > cap) {
+                    cap *= 2;
+                    uint8_t *new_buf = (uint8_t *)realloc(buf, cap);
+                    if (!new_buf) break;
+                    buf = new_buf;
                 }
-                ESP_LOGI(TAG, "TTS audio: %zu bytes", total);
-                if (total > 0) cb_.on_tts_audio(buf, total);
-                free(buf);
             }
+            ESP_LOGI(TAG, "TTS audio: %zu bytes", total);
+            if (total > 0) cb_.on_tts_audio(buf, total);
+            free(buf);
         }
-    } else {
+    } else if (err != ESP_OK) {
         ESP_LOGE(TAG, "TTS HTTP failed: %s", esp_err_to_name(err));
+    } else {
+        ESP_LOGE(TAG, "TTS HTTP status: %d", status);
     }
 
     esp_http_client_cleanup(client);

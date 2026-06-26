@@ -9,9 +9,10 @@ import json
 import os
 import httpx
 from typing import Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from models import Task, TaskLog
+from routes.auth import get_current_user
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -267,18 +268,20 @@ async def _load_history(session_id: str, agent_id: str = "dispatcher") -> list[d
 
 
 async def _save_message(session_id: str, role: str, content: str,
-                         tool_calls: list = None, tool_call_id: str = None):
+                         tool_calls: list = None, tool_call_id: str = None,
+                         user_id: str = None):
     """保存消息到数据库"""
     tc_str = json.dumps(tool_calls, ensure_ascii=False) if tool_calls else None
     await storage.save_chat_message(session_id, role, content or "",
-                                     tool_calls=tc_str, tool_call_id=tool_call_id)
+                                     tool_calls=tc_str, tool_call_id=tool_call_id,
+                                     user_id=user_id)
 
 
 # ==================== API 路由 ====================
 
 
 @router.post("")
-async def chat(request: dict):
+async def chat(request: dict, user=Depends(get_current_user)):
     """
     聊天接口：接收用户消息 → LLM → function calling → 回复
     支持 agent_id 参数来切换不同智能体
@@ -297,14 +300,14 @@ async def chat(request: dict):
             if client:
                 try:
                     # 加载历史上下文
-                    history_rows = await storage.get_chat_history(session_id)
+                    history_rows = await storage.get_chat_history(session_id, user_id=user.id)
                     context = _format_history_for_agent(history_rows, message)
-                    await _save_message(session_id, "user", message)
+                    await _save_message(session_id, "user", message, user_id=user.id)
                     # 映射ID（远程MESH可能用不同命名）
                     target_id = AGENT_ID_MAP.get(agent_id, agent_id)
                     reply = await client.send_to_agent(target_id, context, timeout=60)
                     if reply:
-                        await _save_message(session_id, "assistant", reply)
+                        await _save_message(session_id, "assistant", reply, user_id=user.id)
                         # 标记在线 + 更新时间戳
                         try:
                             await storage.update_agent(agent_id, {
@@ -316,7 +319,7 @@ async def chat(request: dict):
                         return {"code": 0, "data": {"reply": reply, "session_id": session_id, "agent_id": agent_id}}
                     else:
                         fallback = f"⚠️ 智能体 {agent_id} 未回复（可能不在线）"
-                        await _save_message(session_id, "assistant", fallback)
+                        await _save_message(session_id, "assistant", fallback, user_id=user.id)
                         return {"code": 0, "data": {"reply": fallback, "session_id": session_id, "agent_id": agent_id}}
                 except Exception as e:
                     return {"code": 1, "message": f"MESH 转发失败: {e}"}
@@ -328,7 +331,7 @@ async def chat(request: dict):
         # 加载历史 + 追加用户消息
         history = await _load_history(session_id, agent_id)
         history.append({"role": "user", "content": message})
-        await _save_message(session_id, "user", message)
+        await _save_message(session_id, "user", message, user_id=user.id)
 
         # LLM 调用循环（多轮 function calling）
         max_rounds = 5
@@ -344,7 +347,7 @@ async def chat(request: dict):
 
             if not tool_calls:
                 reply = msg.get("content", "好的，已处理完成。")
-                await _save_message(session_id, "assistant", reply)
+                await _save_message(session_id, "assistant", reply, user_id=user.id)
                 return {
                     "code": 0,
                     "data": {"reply": reply, "session_id": session_id, "agent_id": agent_id},
@@ -357,7 +360,7 @@ async def chat(request: dict):
                 "tool_calls": tool_calls,
             })
             await _save_message(session_id, "assistant", msg.get("content", ""),
-                                 tool_calls=tool_calls)
+                                 tool_calls=tool_calls, user_id=user.id)
 
             for tc in tool_calls:
                 func_name = tc.get("function", {}).get("name", "")
@@ -371,7 +374,7 @@ async def chat(request: dict):
                 result_str = json.dumps(result, ensure_ascii=False)
                 history.append({"role": "tool", "tool_call_id": tc.get("id", ""), "content": result_str})
                 await _save_message(session_id, "tool", result_str,
-                                     tool_call_id=tc.get("id", ""))
+                                     tool_call_id=tc.get("id", ""), user_id=user.id)
 
         return {
             "code": 0,
@@ -386,10 +389,10 @@ async def chat(request: dict):
 
 
 @router.get("/history/{session_id}")
-async def get_chat_history(session_id: str = "default"):
+async def get_chat_history(session_id: str = "default", user=Depends(get_current_user)):
     """获取聊天历史（过滤掉 system 消息，简化工具有用信息）"""
     try:
-        rows = await storage.get_chat_history(session_id)
+        rows = await storage.get_chat_history(session_id, user_id=user.id)
         clean = []
         for r in rows:
             if r["role"] == "system":
@@ -404,14 +407,14 @@ async def get_chat_history(session_id: str = "default"):
 
 
 @router.get("/sessions")
-async def list_sessions():
-    """获取所有会话列表"""
+async def list_sessions(user=Depends(get_current_user)):
+    """获取当前用户的会话列表"""
     try:
-        sessions = await storage.get_sessions()
+        sessions = await storage.get_sessions(user_id=user.id)
         result = []
         for s in sessions:
             sid = s["session_id"]
-            title = await storage.get_session_title(sid)
+            title = await storage.get_session_title(sid, user_id=user.id)
             result.append({
                 "session_id": sid,
                 "title": title,
@@ -423,10 +426,10 @@ async def list_sessions():
 
 
 @router.delete("/session/{session_id}")
-async def delete_session(session_id: str):
+async def delete_session(session_id: str, user=Depends(get_current_user)):
     """删除会话"""
     try:
-        await storage.delete_session(session_id)
+        await storage.delete_session(session_id, user_id=user.id)
         return {"code": 0, "message": "已删除"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -459,6 +462,7 @@ async def list_chat_agents():
                 "id": agent.id,
                 "name": agent.name,
                 "nickname": agent.nickname or "",
+                "type": agent.type if hasattr(agent, 'type') else 'agent',
                 "avatar": style.get("avatar", agent.name[0] if agent.name else "?"),
                 "avatar_color": agent.avatar_color if hasattr(agent, 'avatar_color') and agent.avatar_color else 0xFF888888,
                 "pinned": agent.pinned if hasattr(agent, 'pinned') and agent.pinned else False,

@@ -31,12 +31,19 @@ logging.basicConfig(
 )
 log = logging.getLogger("agent")
 
+# ── 服务器地址配置（从环境变量读取，避免硬编码IP）──
+
+SERVER_HOST = os.environ.get("MESH_SERVER_HOST", "localhost")
+SERVER_PORT = os.environ.get("MESH_SERVER_PORT", "8765")
+SERVER_HTTP = os.environ.get("MESH_SERVER_HTTP", f"http://{SERVER_HOST}:{SERVER_PORT}")
+SERVER_WS = os.environ.get("MESH_SERVER_WS", f"ws://{SERVER_HOST}:{SERVER_PORT}")
+
 # ── 各智能体配置 ──
 
 AGENT_CONFIGS = {
     "xiaoqing": {
         "name": "小青",
-        "server": "ws://101.37.231.143:8765",
+        "server": SERVER_WS,
         "capabilities": [
             "code_generation", "file_transfer", "web_search",
             "translation", "desktop_automation", "wechat_operations"
@@ -46,23 +53,24 @@ AGENT_CONFIGS = {
     },
     "xiaobai": {
         "name": "小白",
-        "server": "ws://101.37.231.143:8765",
+        "server": SERVER_WS,
         "capabilities": [
             "file_transfer", "system_monitor", "download_management",
-            "ssh_operations", "web_search"
+            "ssh_operations", "web_search", "github_push"
         ],
-        "specialties": ["文件下载", "系统监控", "服务器运维", "下载站管理"],
-        "description": "新云服务器AI助手，擅长文件处理、下载站管理、系统监控",
+        "specialties": ["文件下载", "系统监控", "服务器运维", "下载站管理", "GitHub推送"],
+        "description": "新云服务器AI助手，擅长文件处理、下载站管理、系统监控、GitHub操作",
     },
     "xiaolan": {
         "name": "小蓝",
-        "server": "ws://101.37.231.143:8765",
+        "server": SERVER_WS,
         "capabilities": [
             "system_monitor", "web_search", "code_generation",
-            "data_analysis", "api_integration", "task_scheduling"
+            "data_analysis", "api_integration", "task_scheduling",
+            "ssh_operations", "hermes_call"
         ],
-        "specialties": ["系统管理", "数据分析", "API集成", "任务调度"],
-        "description": "阿里云服务器管理员，7x24在线，负责协调调度",
+        "specialties": ["系统管理", "数据分析", "API集成", "任务调度", "SSH运维"],
+        "description": "阿里云服务器管理员，7x24在线，负责协调调度、SSH运维",
     },
 }
 
@@ -126,8 +134,9 @@ class AgentRunner:
             # 2. 已注册，用 admin 登录获取新 token
             log.info(f"智能体已存在，用 admin 获取 token...")
             try:
+                password = os.environ.get("MESH_ADMIN_PASSWORD", "admin123")
                 r = await http.post(f"{self.server_http}/api/auth/login", json={
-                    "username": "admin", "password": "admin123"
+                    "username": "admin", "password": password
                 })
                 admin_token = r.json().get("data", {}).get("token", "")
                 if not admin_token:
@@ -172,6 +181,7 @@ class AgentRunner:
         self.client.on_message(self._handle_message)
         self.client.on_agent_call(self._handle_agent_call)
         self.client.on_status(self._handle_status)
+        self.client.on_task_request(self._handle_task_request)
 
         # 连接并注册
         self._running = True
@@ -367,9 +377,18 @@ class AgentRunner:
 
     async def _delegate_task(self, task_id: str, content: str,
                               from_id: str, decision: dict):
-        """将任务委派给其他Agent"""
+        """将任务委派给其他Agent（带确认机制 + 备选自动切换）
+
+        流程:
+          1. 发送 task_request 给首选拟Agent
+          2. 等待确认（10秒超时）
+          3. 被拒绝/超时 → 自动尝试 alternatives 列表中的下一个
+          4. 所有备选都失败 → 通知调用方
+        """
         target = decision.get("target_agent", "")
         cap_needed = decision.get("required_capability", "")
+        alternatives = decision.get("alternatives", [])
+
         if not target:
             log.error("无法委派：未指定目标Agent")
             if self.client:
@@ -391,14 +410,131 @@ class AgentRunner:
             "text",
         )
 
-        # 通过 agent_call 发送任务给目标Agent
-        await self.client.call_agent(
-            target,
-            cap_needed,  # action = 所需能力名称
-            call_id=task_id,
-            params={"task_id": task_id, "description": content, "from_agent": self.agent_id},
-        )
-        log.info(f"📤 任务 [{task_id}] 已委派给 {target}")
+        # 构建候选列表：首选拟 + 备选
+        candidates = [target] + [a for a in alternatives if a != target]
+        task_status = "failed"
+
+        for idx, candidate in enumerate(candidates):
+            label = "首选" if idx == 0 else f"备选#{idx}"
+            log.info(f"📤 任务 [{task_id}] 尝试 {label}: {candidate}")
+
+            # 更新任务状态为 requesting
+            if self.client:
+                await self.client.update_task_status(task_id, "requesting")
+
+            # 发送 task_request
+            await self.client.send_task_request(
+                target_id=candidate,
+                task_id=task_id,
+                description=content,
+                required_capability=cap_needed,
+                timeout=20.0,
+            )
+
+            # 等待确认
+            result = await self.client.wait_for_task_confirmation(
+                task_id, timeout=20.0
+            )
+            status = result.get("status", "timed_out")
+            reason = result.get("reason", "")
+
+            if status == "accepted":
+                log.info(f"✅ 任务 [{task_id}] 被 {candidate} 接受")
+                task_status = "accepted"
+                # 通知调用方已被接受
+                if self.client:
+                    await self.client.send(
+                        from_id,
+                        f"任务 [{task_id}] 已被 {candidate} 接受，正在执行...",
+                        "text",
+                    )
+                break
+            else:
+                log.info(f"❌ 任务 [{task_id}] 被 {candidate} {status}: {reason}")
+                if idx < len(candidates) - 1:
+                    next_target = candidates[idx + 1]
+                    log.info(f"🔄 尝试下一个备选: {next_target}")
+                    if self.client:
+                        await self.client.send(
+                            from_id,
+                            f"任务 [{task_id}]：{candidate} {status}({reason})，"
+                            f"正在尝试下一个备选 {next_target}...",
+                            "text",
+                        )
+
+        if task_status == "failed":
+            log.warning(f"⚠️ 任务 [{task_id}] 所有候选均失败")
+            if self.client:
+                await self.client.send(
+                    from_id,
+                    f"任务 [{task_id}] 委派失败：所有候选Agent"
+                    f"({', '.join(candidates)}) 均拒绝或超时",
+                    "text",
+                )
+
+    async def _handle_task_request(self, data: dict):
+        """处理收到的任务请求 — 先确认(ACCEPT/REJECT)，再执行
+
+        接收方逻辑:
+          1. 收到 task_request
+          2. 检查自己是否能处理（通过决策引擎）
+          3. 能处理 → 回复 ACCEPT，开始执行
+          4. 不能处理 → 回复 REJECT
+        """
+        task_id = data.get("task_id", "")
+        description = data.get("description", "")
+        from_agent = data.get("from_agent", "")
+        required_capability = data.get("required_capability", "")
+
+        log.info(f"📋 收到任务请求 [{task_id}] 来自 {from_agent}: {description[:80]}")
+
+        # 决策：自己能否处理
+        decision = await self._make_decision(description, from_agent=self.agent_id)
+        action = decision.get("decision", "SELF").upper()
+
+        if action == "DELEGATE":
+            # 自己也处理不了，拒绝
+            reason = f"我({self.name})没有处理此任务的能力({required_capability})"
+            log.info(f"❌ 拒绝任务 [{task_id}]: {reason}")
+            if self.client:
+                await self.client.send_task_response(
+                    target_id=from_agent,
+                    task_id=task_id,
+                    status="rejected",
+                    reason=reason,
+                )
+            return
+
+        # 可以处理（SELF 或 UNKNOWN 但本地尝试）
+        log.info(f"✅ 接受任务 [{task_id}]")
+        if self.client:
+            await self.client.send_task_response(
+                target_id=from_agent,
+                task_id=task_id,
+                status="accepted",
+                reason=f"我({self.name})可以处理",
+            )
+            # 更新任务状态为 executing
+            await self.client.update_task_status(task_id, "executing")
+
+        # 本地执行
+        result = await self._execute_locally(description)
+
+        if self.client:
+            if result:
+                await self.client.send(
+                    from_agent,
+                    f"任务 [{task_id}] 执行完成\n{result}",
+                    "text",
+                )
+            else:
+                await self.client.send(
+                    from_agent,
+                    f"任务 [{task_id}] 执行完成",
+                    "text",
+                )
+            # 更新任务状态为 completed
+            await self.client.complete_task(task_id, result or "完成")
 
     async def _execute_locally(self, content: str) -> str:
         """尝试本地执行任务，返回结果文本或空字符串"""

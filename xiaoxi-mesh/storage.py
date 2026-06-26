@@ -213,15 +213,16 @@ class Storage:
             )
             await self._db.commit()
 
-    async def get_undelivered(self, agent_id: str) -> list[Message]:
-        """获取未投递消息"""
+    async def get_undelivered(self, agent_id: str, limit: int = 100, offset: int = 0) -> list[Message]:
+        """获取未投递消息（分页）"""
         async with self._lock:
             cur = await self._db.execute(
                 """SELECT * FROM messages
                    WHERE (to_id = ? OR to_id = 'broadcast')
                      AND delivered = 0
-                   ORDER BY created_at ASC""",
-                (agent_id,)
+                   ORDER BY created_at ASC
+                   LIMIT ? OFFSET ?""",
+                (agent_id, limit, offset)
             )
             rows = await cur.fetchall()
             msgs = []
