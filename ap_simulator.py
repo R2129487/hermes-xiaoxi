@@ -78,8 +78,9 @@ async def ap_session(token, mode='interactive', send_text=None):
         if mode == 'send_once':
             await asyncio.sleep(0.5)
             await ws.send(json.dumps({
-                'type': 'message',
+                'type': 'send',
                 'to': 'xiaoqing',
+                'data_type': 'text',
                 'content': send_text or '你好，我是手机端App'
             }, ensure_ascii=False))
             log(f"📤 已发送: {send_text or '你好，我是手机端App'}")
@@ -95,8 +96,8 @@ async def ap_session(token, mode='interactive', send_text=None):
             await asyncio.sleep(0.5)
             
             tests = [
-                ('[测试1] 普通消息', {'type': 'message', 'to': 'xiaoqing', 'content': '你好小青，AP模拟器测试'}),
-                ('[测试2] 指令消息', {'type': 'message', 'to': 'xiaoqing', 'content': '现在几点了'}),
+                ('[测试1] 普通消息', {'type': 'send', 'to': 'xiaoqing', 'data_type': 'text', 'content': '你好小青，AP模拟器测试'}),
+                ('[测试2] 指令消息', {'type': 'send', 'to': 'xiaoqing', 'data_type': 'text', 'content': '现在几点了'}),
                 ('[测试3] 获取智能体', {'type': 'get_agents'}),
             ]
             

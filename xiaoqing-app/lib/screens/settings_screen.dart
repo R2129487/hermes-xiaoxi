@@ -13,8 +13,8 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final _hostCtrl = TextEditingController(text: '192.168.1.6');
-  final _portCtrl = TextEditingController(text: '8767');
+  late final _hostCtrl = TextEditingController(text: api.host);
+  late final _portCtrl = TextEditingController(text: api.port.toString());
   bool _connected = false;
   bool _checking = false;
 
@@ -100,6 +100,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         _checking ? '检测中...' : (_connected ? '已连接' : '未连接'),
                         style: TextStyle(color: _checking ? Colors.grey : (_connected ? Colors.green : Colors.red)),
                       ),
+                      const Spacer(),
+                      Text(
+                        '${api.host}:${api.port}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[500], fontFamily: 'monospace'),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -137,8 +142,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Wrap(
                     spacing: 8,
                     children: [
-                      actionChip('本机', '192.168.1.6', '8767'),
+                      actionChip('内网', '10.10.0.1', '8767'),
                       actionChip('阿里云', '101.37.231.143', '8767'),
+                      actionChip('本地', '192.168.1.6', '8767'),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -174,24 +180,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          // 用户管理（仅 admin 可见）
-          if (api.currentUser?.role == 'admin')
-            Card(
-              child: ListTile(
-                leading: Icon(Icons.people, color: Colors.grey[600]),
-                title: const Text('用户管理', style: TextStyle(fontSize: 15)),
-                subtitle: const Text('查看和管理所有用户', style: TextStyle(fontSize: 12)),
-                trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
-                onTap: () async {
-                  final changed = await Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => _UserManagementScreen(api: api)),
-                  );
-                  if (changed == true) setState(() {});
-                },
+          // 用户管理
+          Card(
+            child: ListTile(
+              leading: Icon(Icons.people, color: Colors.grey[600]),
+              title: const Text('用户管理', style: TextStyle(fontSize: 15)),
+              subtitle: Text(
+                api.currentUser?.role == 'admin' ? '查看和管理所有用户' : '需要管理员权限',
+                style: TextStyle(fontSize: 12),
               ),
+              trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
+              onTap: () async {
+                if (api.currentUser?.role != 'admin') {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('仅管理员可管理用户'), duration: Duration(seconds: 2)),
+                  );
+                  return;
+                }
+                final changed = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => _UserManagementScreen(api: api)),
+                );
+                if (changed == true) setState(() {});
+              },
             ),
-          if (api.currentUser?.role == 'admin') const SizedBox(height: 16),
+          ),
+          const SizedBox(height: 16),
           // 退出登录按钮
           Card(
             child: ListTile(
@@ -323,6 +337,108 @@ class _UserManagementScreenState extends State<_UserManagementScreen> {
     }
   }
 
+  /// 确认删除用户 — 需输入 OK 确认
+  void _confirmDeleteUser(User user) {
+    final confirmCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final confirmed = confirmCtrl.text.trim().toUpperCase() == 'OK';
+            return AlertDialog(
+              title: const Text('确认删除'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.red[400], size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        '将要删除用户：',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.red[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 14,
+                          backgroundColor: _roleColor(user.role),
+                          child: Text(
+                            user.displayName[0].toUpperCase(),
+                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(user.displayName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                            Text('@${user.username}', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('此操作不可撤销。输入 OK 确认删除：', style: TextStyle(fontSize: 13)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: confirmCtrl,
+                    autofocus: true,
+                    style: const TextStyle(fontSize: 16, letterSpacing: 2),
+                    decoration: InputDecoration(
+                      hintText: '输入 OK',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      isDense: true,
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('取消'),
+                ),
+                ElevatedButton(
+                  onPressed: confirmed
+                      ? () async {
+                          Navigator.pop(ctx);
+                          final ok = await _api.deleteUser(user.id);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(ok ? '✅ 已删除 ${user.displayName}' : '❌ 删除失败')),
+                            );
+                            if (ok) _loadUsers();
+                          }
+                        }
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: confirmed ? Colors.red : Colors.grey[300],
+                    foregroundColor: confirmed ? Colors.white : Colors.grey[500],
+                  ),
+                  child: const Text('删除'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -349,9 +465,20 @@ class _UserManagementScreenState extends State<_UserManagementScreen> {
                       title: Text(u.displayName.isNotEmpty ? u.displayName : u.username),
                       subtitle: Text('@${u.username} · ${_roleLabel(u.role)}'),
                       trailing: u.id != _api.currentUser?.id
-                          ? IconButton(
-                              icon: Icon(Icons.admin_panel_settings, color: Colors.grey[400]),
-                              onPressed: () => _showRolePicker(u),
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.admin_panel_settings, color: Colors.grey[400], size: 20),
+                                  onPressed: () => _showRolePicker(u),
+                                  tooltip: '修改角色',
+                                ),
+                                IconButton(
+                                  icon: Icon(Icons.delete_outline, color: Colors.red[300], size: 20),
+                                  onPressed: () => _confirmDeleteUser(u),
+                                  tooltip: '删除用户',
+                                ),
+                              ],
                             )
                           : const Chip(label: Text('自己', style: TextStyle(fontSize: 11))),
                     ),

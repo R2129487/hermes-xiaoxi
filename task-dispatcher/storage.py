@@ -260,7 +260,7 @@ class Storage:
     async def get_chat_history(self, session_id: str, limit: int = 200, user_id: str = None) -> list[dict]:
         if user_id:
             cursor = await self._conn.execute(
-                """SELECT * FROM chat_messages WHERE session_id = ? AND user_id = ?
+                """SELECT * FROM chat_messages WHERE session_id = ? AND (user_id = ? OR user_id IS NULL)
                    ORDER BY id ASC LIMIT ?""",
                 (session_id, user_id, limit)
             )
@@ -490,3 +490,47 @@ class Storage:
         cursor = await self._conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
         await self._conn.commit()
         return cursor.rowcount > 0
+
+    # ==================== 消息任务状态 ====================
+
+    async def create_message_task(self, task_id: str, session_id: str, content: str, agent_id: str, user_id: str = "") -> dict:
+        """创建消息处理任务"""
+        now = now_str()
+        await self._conn.execute(
+            """INSERT INTO message_tasks (id, session_id, user_id, content, agent_id, status, detail, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, 'received', '服务器已收到', ?, ?)""",
+            (task_id, session_id, user_id, content, agent_id, now, now))
+        await self._conn.commit()
+        return {"task_id": task_id, "status": "received", "detail": "服务器已收到"}
+
+    async def update_message_task(self, task_id: str, status: str, detail: str = "", reply: str = "") -> bool:
+        """更新消息处理状态"""
+        now = now_str()
+        sets = ["status = ?", "detail = ?", "updated_at = ?"]
+        params = [status, detail, now]
+        if reply:
+            sets.append("reply = ?")
+            params.append(reply)
+        params.append(task_id)
+        sql = f"UPDATE message_tasks SET {', '.join(sets)} WHERE id = ?"
+        cursor = await self._conn.execute(sql, params)
+        await self._conn.commit()
+        return cursor.rowcount > 0
+
+    async def get_message_task(self, task_id: str) -> dict | None:
+        """查询消息任务状态"""
+        cursor = await self._conn.execute(
+            "SELECT id, session_id, status, detail, reply, created_at, updated_at FROM message_tasks WHERE id = ?",
+            (task_id,))
+        row = await cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
+
+    async def get_message_tasks_by_session(self, session_id: str, limit: int = 20) -> list[dict]:
+        """查询会话的消息任务列表"""
+        cursor = await self._conn.execute(
+            "SELECT id, session_id, status, detail, reply, created_at, updated_at FROM message_tasks WHERE session_id = ? ORDER BY created_at DESC LIMIT ?",
+            (session_id, limit))
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]

@@ -146,6 +146,19 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     timestamp TEXT
 );
 
+CREATE TABLE IF NOT EXISTS message_tasks (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    user_id TEXT DEFAULT '',
+    content TEXT DEFAULT '',
+    agent_id TEXT DEFAULT '',
+    status TEXT DEFAULT 'received',
+    detail TEXT DEFAULT '',
+    reply TEXT DEFAULT '',
+    created_at TEXT,
+    updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS servers (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL DEFAULT '',

@@ -3,6 +3,7 @@ import '../services/dispatcher_api.dart';
 import '../models/agent.dart';
 import '../models/message.dart';
 import 'chat_detail.dart';
+import '../main.dart' show api;
 
 /// 对话列表 — 微信首页风格，每个智能体一个聊天框
 class ConversationList extends StatefulWidget {
@@ -13,10 +14,21 @@ class ConversationList extends StatefulWidget {
 }
 
 class _ConversationListState extends State<ConversationList> {
-  final DispatcherApi _api = DispatcherApi();
   List<Agent> _agents = [];
   Map<String, List<Message>> _historyCache = {};
   bool _loading = true;
+
+  /// 状态中文映射
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'online': return '🟢 在线';
+      case 'thinking': return '💭 思考中';
+      case 'working': return '⚙️ 工作中';
+      case 'idle': return '💤 空闲';
+      case 'offline': return '🔴 离线';
+      default: return status;
+    }
+  }
 
   @override
   void initState() {
@@ -25,7 +37,7 @@ class _ConversationListState extends State<ConversationList> {
   }
 
   Future<void> _loadData() async {
-    final agents = await _api.getAgents();
+    final agents = await api.getAgents();
     // 排序：调度员置顶 → 置顶 → 在线 → 离线
     agents.sort((a, b) {
       final w = a.sortWeight.compareTo(b.sortWeight);
@@ -36,7 +48,7 @@ class _ConversationListState extends State<ConversationList> {
     final history = <String, List<Message>>{};
     for (final a in agents) {
       final sessionId = 'session_agent_${a.agentId}';
-      final msgs = await _api.getHistory(sessionId);
+      final msgs = await api.getHistory(sessionId);
       history[a.agentId] = msgs;
     }
     if (mounted) {
@@ -63,11 +75,16 @@ class _ConversationListState extends State<ConversationList> {
   }
 
   // ─── 分组提取 ───
+  bool _isSelf(Agent a) {
+    final uid = api.currentUser?.id ?? '';
+    return uid.isNotEmpty && a.agentId == 'user_$uid';
+  }
+
   List<Agent> get _dispatchers => _agents.where((a) => a.type == 'dispatcher').toList();
   List<Agent> get _pinnedOnline =>
       _agents.where((a) => a.type == 'agent' && (a.pinned || a.online)).toList();
   List<Agent> get _users =>
-      _agents.where((a) => a.type == 'user' && (a.pinned || a.online)).toList();
+      _agents.where((a) => a.type == 'user' && !_isSelf(a)).toList();
   List<Agent> get _offline =>
       _agents.where((a) => a.type == 'agent' && !a.pinned && !a.online).toList();
 
@@ -101,6 +118,7 @@ class _ConversationListState extends State<ConversationList> {
             agentColor: color,
             agentAvatar: avatarChar,
             sessionId: sessionId,
+            agentStatus: a.status,
           ),
         )).then((_) => _loadData());
       },
@@ -153,6 +171,11 @@ class _ConversationListState extends State<ConversationList> {
                             style: const TextStyle(
                               fontWeight: FontWeight.w500, fontSize: 16, color: Color(0xFF191919),
                             ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _statusLabel(a.status),
+                            style: TextStyle(color: Colors.grey[400], fontSize: 11),
                           ),
                           if (a.pinned) ...[
                             const SizedBox(width: 4),

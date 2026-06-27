@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from typing import Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -13,6 +14,13 @@ from app_state import (
     brain,
 )
 from models import Message
+
+# 本地转发目录 — 目标智能体无 WS 连接时写入此目录
+LOCAL_INBOX_DIR = os.path.expanduser("~/.hermes/mesh_inbox")
+os.makedirs(LOCAL_INBOX_DIR, exist_ok=True)
+
+# 本地智能体列表（不走 MESH WS，直接写文件队列）
+LOCAL_AGENTS = {"xiaoqing", "xiaobai", "xiaohei"}
 
 
 async def _send_json(ws: WebSocket, data: dict):
@@ -62,6 +70,21 @@ async def _try_deliver(msg: Message):
             "type": "message",
             "data": msg.model_dump(mode="json"),
         })
+        msg.delivered = True
+        await store.mark_delivered(msg.id)
+    elif msg.to_id in LOCAL_AGENTS:
+        # 本地智能体 — 直接写文件队列
+        fpath = os.path.join(LOCAL_INBOX_DIR, f"{msg.id}.json")
+        with open(fpath, "w", encoding="utf-8") as f:
+            json.dump({
+                "from": msg.from_id,
+                "to": msg.to_id,
+                "content": msg.content,
+                "msg_id": msg.id,
+                "type": msg.type,
+                "timestamp": msg.created_at.isoformat() if hasattr(msg.created_at, 'isoformat') else str(msg.created_at),
+            }, f, ensure_ascii=False)
+        log.info(f"[本地转发] {msg.from_id} → {msg.to_id} 写入队列: {fpath}")
         msg.delivered = True
         await store.mark_delivered(msg.id)
 

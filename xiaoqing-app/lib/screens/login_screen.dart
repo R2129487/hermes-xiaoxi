@@ -16,8 +16,8 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _usernameCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
-  final _serverHostCtrl = TextEditingController(text: '192.168.1.6');
-  final _serverPortCtrl = TextEditingController(text: '8767');
+  late final _serverHostCtrl = TextEditingController(text: widget.api.host);
+  late final _serverPortCtrl = TextEditingController(text: widget.api.port.toString());
 
   bool _loading = false;
   bool _registering = false;

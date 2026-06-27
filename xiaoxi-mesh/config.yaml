@@ -21,7 +21,7 @@ limits:
 admin:
   username: "admin"
   # 默认密码: admin123 (首次启动后请修改)
-  password_hash: "$2b$12$iiVp8JDEGTBc28RQ.gaYmeTIjtP1B6YoVQOT0x1OKCrnmLSc6ulru"
+  password_hash: "$2b$12$VGRq9DX8Jw8dokioW7tJTetI749JcrRGMbevydnIsDuLqdHhwp9aS"
 
 # v2: 协作引擎配置
 collaboration:

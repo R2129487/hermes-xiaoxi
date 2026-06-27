@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sherpa_onnx/sherpa_onnx.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/dispatcher_api.dart';
@@ -11,6 +12,15 @@ final DispatcherApi api = DispatcherApi();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 初始化 sherpa-onnx 语音引擎 native 库
+  try {
+    initBindings();
+    print('[main] ✅ sherpa-onnx 绑定初始化成功');
+  } catch (e) {
+    print('[main] ❌ sherpa-onnx 初始化失败: $e');
+  }
+
   await api.init();
   runApp(const XiaoQingApp());
 }

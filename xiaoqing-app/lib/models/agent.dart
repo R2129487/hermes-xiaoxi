@@ -7,6 +7,7 @@ class Agent {
   final String avatar;
   final int avatarColor;       // 头像背景色 ARGB int
   final bool online;
+  final String status;         // online/offline/thinking/working/idle
   final bool pinned;           // 是否置顶
   final String capabilities;
 
@@ -18,6 +19,7 @@ class Agent {
     this.avatar = '?',
     this.avatarColor = 0xFF888888,
     this.online = false,
+    this.status = 'offline',
     this.pinned = false,
     this.capabilities = '',
   });
@@ -41,7 +43,8 @@ class Agent {
       type: json['type'] ?? 'agent',
       avatar: json['avatar'] ?? (json['name']?.toString().isNotEmpty == true ? json['name'][0] : '?'),
       avatarColor: json['avatar_color'] ?? 0xFF888888,
-      online: json['status'] == 'online',
+      online: json['status'] != 'offline',
+      status: json['status'] ?? 'offline',
       pinned: json['pinned'] ?? false,
       capabilities: json['capabilities'] ?? '',
     );

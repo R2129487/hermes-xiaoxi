@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import asyncio
 import httpx
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
@@ -283,57 +284,82 @@ async def _save_message(session_id: str, role: str, content: str,
 @router.post("")
 async def chat(request: dict, user=Depends(get_current_user)):
     """
-    聊天接口：接收用户消息 → LLM → function calling → 回复
-    支持 agent_id 参数来切换不同智能体
+    聊天接口（异步）：接收消息 → 创建任务 → 后台处理
+    返回 task_id，前端轮询 /api/chat/status/{task_id} 获取状态和回复
     """
+    import uuid
+    message = request.get("message", "").strip()
+    session_id = request.get("session_id", "default")
+    agent_id = request.get("agent_id", "dispatcher")
+
+    if not message:
+        return {"code": 1, "message": "消息不能为空"}
+
+    task_id = uuid.uuid4().hex[:12]
+    await storage.create_message_task(task_id, session_id, message, agent_id, user.id)
+
+    # 后台异步处理
+    asyncio.create_task(_process_message(task_id, message, session_id, agent_id, user))
+
+    return {"code": 0, "data": {"task_id": task_id, "status": "received", "detail": "服务器已收到"}}
+
+
+async def _process_message(task_id: str, message: str, session_id: str, agent_id: str, user):
+    """后台异步处理消息，逐步更新状态"""
     try:
-        message = request.get("message", "").strip()
-        session_id = request.get("session_id", "default")
-        agent_id = request.get("agent_id", "dispatcher")
+        await storage.update_message_task(task_id, "processing", "处理中")
 
-        if not message:
-            return {"code": 1, "message": "消息不能为空"}
+        # ── 本地智能体（xiao-qing）──
+        if agent_id == "xiao-qing":
+            await storage.update_message_task(task_id, "forwarding", "转至 小青")
+            await _save_message(session_id, "user", message, user_id=user.id)
 
-        # 非调度员智能体：通过 MESH 转发给真实智能体（带上对话历史）
+            # 写入 inbox 给 watcher
+            import json as _json
+            inbox_dir = '/tmp/hermes_mesh_inbox/'
+            os.makedirs(inbox_dir, exist_ok=True)
+            inbox_path = os.path.join(inbox_dir, f'{task_id}.json')
+            with open(inbox_path, 'w') as f:
+                _json.dump({
+                    'task_id': task_id,
+                    'from': user.id,
+                    'message': message,
+                    'session': session_id,
+                    'time': __import__("models").now_str(),
+                }, f, ensure_ascii=False)
+
+            # 等待 watcher/智能体回复（最多等 60 秒）
+            import asyncio
+            for _ in range(60):
+                await asyncio.sleep(1)
+                task = await storage.get_message_task(task_id)
+                if task and task["status"] in ("completed", "failed"):
+                    break
+            return
+
+        # ── 其他智能体：通过 MESH 转发 ──
         if agent_id != "dispatcher":
+            await storage.update_message_task(task_id, "forwarding", f"转至 {agent_id}")
+            await _save_message(session_id, "user", message, user_id=user.id)
+
             client = mesh_client
             if client:
-                try:
-                    # 加载历史上下文
-                    history_rows = await storage.get_chat_history(session_id, user_id=user.id)
-                    context = _format_history_for_agent(history_rows, message)
-                    await _save_message(session_id, "user", message, user_id=user.id)
-                    # 映射ID（远程MESH可能用不同命名）
-                    target_id = AGENT_ID_MAP.get(agent_id, agent_id)
-                    reply = await client.send_to_agent(target_id, context, timeout=60)
-                    if reply:
-                        await _save_message(session_id, "assistant", reply, user_id=user.id)
-                        # 标记在线 + 更新时间戳
-                        try:
-                            await storage.update_agent(agent_id, {
-                                "status": "online",
-                                "last_seen": __import__("models").now_str(),
-                            })
-                        except Exception:
-                            pass
-                        return {"code": 0, "data": {"reply": reply, "session_id": session_id, "agent_id": agent_id}}
-                    else:
-                        fallback = f"⚠️ 智能体 {agent_id} 未回复（可能不在线）"
-                        await _save_message(session_id, "assistant", fallback, user_id=user.id)
-                        return {"code": 0, "data": {"reply": fallback, "session_id": session_id, "agent_id": agent_id}}
-                except Exception as e:
-                    return {"code": 1, "message": f"MESH 转发失败: {e}"}
-            else:
-                fallback = f"⚠️ 无法连接 {agent_id} 所在的 MESH"
-                return {"code": 0, "data": {"reply": fallback, "session_id": session_id, "agent_id": agent_id}}
+                target_id = AGENT_ID_MAP.get(agent_id, agent_id)
+                history_rows = await storage.get_chat_history(session_id, user_id=user.id)
+                context = _format_history_for_agent(history_rows, message)
+                reply = await client.send_to_agent(target_id, context, timeout=60)
+                if reply:
+                    await storage.update_message_task(task_id, "completed", "已回复", reply)
+                    await _save_message(session_id, "assistant", reply, user_id=user.id)
+                    return
+            await storage.update_message_task(task_id, "failed", f"智能体 {agent_id} 未回复")
+            return
 
-        # 调度员：走 MiMo LLM
-        # 加载历史 + 追加用户消息
+        # ── 调度员：走 MiMo LLM ──
         history = await _load_history(session_id, agent_id)
         history.append({"role": "user", "content": message})
         await _save_message(session_id, "user", message, user_id=user.id)
 
-        # LLM 调用循环（多轮 function calling）
         max_rounds = 5
         for _round in range(max_rounds):
             llm_response = await _call_llm(history)
@@ -341,19 +367,17 @@ async def chat(request: dict, user=Depends(get_current_user)):
             msg = choice.get("message", {})
 
             if not msg:
-                raise HTTPException(status_code=502, detail="LLM 返回为空")
+                await storage.update_message_task(task_id, "failed", "LLM 返回为空")
+                return
 
             tool_calls = msg.get("tool_calls", [])
 
             if not tool_calls:
                 reply = msg.get("content", "好的，已处理完成。")
+                await storage.update_message_task(task_id, "completed", "已回复", reply)
                 await _save_message(session_id, "assistant", reply, user_id=user.id)
-                return {
-                    "code": 0,
-                    "data": {"reply": reply, "session_id": session_id, "agent_id": agent_id},
-                }
+                return
 
-            # 有 tool_calls：保存 assistant 消息（含 tool_calls）→ 执行 → 保存 tool 结果
             history.append({
                 "role": "assistant",
                 "content": msg.get("content", ""),
@@ -369,23 +393,48 @@ async def chat(request: dict, user=Depends(get_current_user)):
                     func_args = json.loads(func_args_str)
                 except json.JSONDecodeError:
                     func_args = {}
-
-                result = await _execute_function(func_name, func_args)
+                try:
+                    result = await _execute_function(func_name, func_args)
+                except Exception as e:
+                    result = {"error": str(e)}
                 result_str = json.dumps(result, ensure_ascii=False)
-                history.append({"role": "tool", "tool_call_id": tc.get("id", ""), "content": result_str})
+                history.append({
+                    "role": "tool",
+                    "tool_call_id": tc.get("id", ""),
+                    "content": result_str,
+                })
                 await _save_message(session_id, "tool", result_str,
                                      tool_call_id=tc.get("id", ""), user_id=user.id)
 
-        return {
-            "code": 0,
-            "data": {"reply": "处理步骤较多，已经在执行中，请稍后查看任务状态。",
-                     "session_id": session_id, "agent_id": agent_id},
-        }
+        # 达到最大轮次
+        final = history[-1].get("content", "请求处理完毕，但未能给出最终回复。")
+        await storage.update_message_task(task_id, "completed", "已处理", final)
+        await _save_message(session_id, "assistant", final, user_id=user.id)
 
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        await storage.update_message_task(task_id, "failed", str(e))
+
+
+# 状态查询 API
+@router.get("/status/{task_id}")
+async def get_message_status(task_id: str):
+    """查询消息处理状态"""
+    task = await storage.get_message_task(task_id)
+    if not task:
+        return {"code": 1, "message": "任务不存在"}
+    return {"code": 0, "data": task}
+
+
+@router.post("/status/update")
+async def update_message_status(request: dict):
+    """更新消息任务状态（智能体回调用）"""
+    task_id = request.get("task_id", "")
+    status = request.get("status", "")
+    detail = request.get("detail", "")
+    if not task_id or not status:
+        return {"code": 1, "message": "缺少 task_id 或 status"}
+    ok = await storage.update_message_task(task_id, status, detail)
+    return {"code": 0 if ok else 1, "data": {"task_id": task_id, "status": status}}
 
 
 @router.get("/history/{session_id}")
@@ -484,7 +533,7 @@ async def update_agent_settings(agent_id: str, body: dict):
     """更新智能体用户设置（备注名、头像颜色等）"""
     try:
         from models import now_str
-        allowed = {"nickname", "avatar_color", "pinned"}
+        allowed = {"nickname", "avatar_color", "pinned", "capabilities"}
         clean = {k: v for k, v in body.items() if k in allowed}
         if not clean:
             return {"code": 1, "message": "没有可更新的字段"}
@@ -495,3 +544,24 @@ async def update_agent_settings(agent_id: str, body: dict):
         return {"code": 1, "message": "智能体不存在"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/reply")
+async def agent_reply(request: dict):
+    """智能体回复接口：将回复写入会话，可选更新消息任务状态"""
+    try:
+        session_id = request.get("session_id", "")
+        content = request.get("content", "").strip()
+        task_id = request.get("task_id", "")
+        status = request.get("status", "completed")
+        user_id = request.get("user_id", "")
+        if not session_id or not content:
+            return {"code": 1, "message": "缺少 session_id 或 content"}
+        await _save_message(session_id, "assistant", content, user_id=user_id or None)
+        # 如果有 task_id，更新消息任务状态
+        if task_id:
+            detail = "智能体已回复" if status == "completed" else status
+            await storage.update_message_task(task_id, status, detail, content)
+        return {"code": 0, "data": {"reply": content, "session_id": session_id}}
+    except Exception as e:
+        return {"code": 1, "message": str(e)}

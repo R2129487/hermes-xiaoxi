@@ -73,69 +73,88 @@ class MeshClient:
             return None
 
     async def connect(self):
-        """连接 MESH：登录 → 创建token → WS 连接 → 注册在线"""
-        import httpx
-        import websockets
+        """连接 MESH（带自动重连，指数退避）"""
+        self._running = True
+        retry_delay = 1
 
-        try:
-            # 1. 登录 MESH 获取 admin token
-            login_url = f"http://{self.host}:{self.port}/api/auth/login"
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(login_url, json={
-                    "username": self.admin_user,
-                    "password": self.admin_password,
-                })
-                if resp.status_code != 200:
-                    print(f"[MeshClient] MESH 登录失败: {resp.status_code} {resp.text}")
-                    return False
-                data = resp.json()
-                admin_token = data.get("token") or data.get("data", {}).get("token", "")
-                if not admin_token:
-                    print(f"[MeshClient] MESH 登录返回无 token: {data}")
-                    return False
-                print(f"[MeshClient] MESH 登录成功, admin_token 获取成功")
+        while self._running:
+            try:
+                import httpx
+                import websockets
 
-            # 2. 用 admin token 为 task-dispatcher 创建专用 token
-            async with httpx.AsyncClient(timeout=10) as client:
-                token_resp = await client.post(
-                    f"http://{self.host}:{self.port}/api/tokens/create?agent_id={self.agent_id}&role=agent",
-                    headers={"Authorization": f"Bearer {admin_token}"}
+                # 1. 登录 MESH 获取 admin token
+                login_url = f"http://{self.host}:{self.port}/api/auth/login"
+                async with httpx.AsyncClient(timeout=10) as client:
+                    resp = await client.post(login_url, json={
+                        "username": self.admin_user,
+                        "password": self.admin_password,
+                    })
+                    if resp.status_code != 200:
+                        print(f"[MeshClient] MESH 登录失败: {resp.status_code}")
+                        raise ConnectionError("登录失败")
+                    data = resp.json()
+                    admin_token = data.get("token") or data.get("data", {}).get("token", "")
+                    if not admin_token:
+                        print(f"[MeshClient] MESH 登录返回无 token")
+                        raise ConnectionError("无 token")
+                    print(f"[MeshClient] MESH 登录成功")
+
+                # 2. 创建专用 token
+                async with httpx.AsyncClient(timeout=10) as client:
+                    token_resp = await client.post(
+                        f"http://{self.host}:{self.port}/api/tokens/create?agent_id={self.agent_id}&role=agent",
+                        headers={"Authorization": f"Bearer {admin_token}"}
+                    )
+                    if token_resp.status_code != 200:
+                        self._token = admin_token
+                    else:
+                        td = token_resp.json()
+                        self._token = td.get("token") or td.get("data", {}).get("token", admin_token)
+
+                # 3. WebSocket 连接
+                ws_url = f"ws://{self.host}:{self.port}/ws/{self.agent_id}?token={self._token}"
+                self._ws = await websockets.connect(ws_url)
+                print(f"[MeshClient] WebSocket 已连接")
+
+                # 4. 注册 capabilities
+                if self.capabilities:
+                    await self._send({
+                        "type": "capability_update",
+                        "capabilities": self.capabilities,
+                        "specialties": ["任务调度", "任务管理", "任务跟踪", "任务分配"],
+                    })
+
+                # 5. 启动心跳和接收循环
+                retry_delay = 1  # 连接成功，重置重试间隔
+                self._keepalive_task = asyncio.create_task(self._keepalive_loop())
+                self._receive_task = asyncio.create_task(self._receive_loop())
+
+                print(f"[MeshClient] task-dispatcher 已在 MESH 上线")
+
+                # 阻塞直到任一循环退出（断线）
+                done, pending = await asyncio.wait(
+                    [self._keepalive_task, self._receive_task],
+                    return_when=asyncio.FIRST_COMPLETED,
                 )
-                if token_resp.status_code != 200:
-                    print(f"[MeshClient] 创建专用 token 失败: {token_resp.status_code}")
-                    # 如果 /api/tokens/create 不可用，直接用 admin token
-                    self._token = admin_token
-                else:
-                    td = token_resp.json()
-                    self._token = td.get("token") or td.get("data", {}).get("token", admin_token)
-                print(f"[MeshClient] 获取到 task-dispatcher token")
+                for task in pending:
+                    task.cancel()
+                self._ws = None
+                raise ConnectionError("连接断开")
 
-            # 2. 通过 WebSocket 连接 MESH
-            ws_url = f"ws://{self.host}:{self.port}/ws/{self.agent_id}?token={self._token}"
-            self._ws = await websockets.connect(ws_url)
-            print(f"[MeshClient] WebSocket 已连接: {ws_url}")
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"[MeshClient] MESH 连接异常: {e}")
+                self._token = None
+                self._ws = None
+                if not self._running:
+                    break
+                wait = min(retry_delay, 30)
+                print(f"[MeshClient] {wait}s 后重连...")
+                await asyncio.sleep(wait)
+                retry_delay = min(retry_delay * 2, 60)
 
-            # 3. 注册 capabilities
-            if self.capabilities:
-                await self._send({
-                    "type": "capability_update",
-                    "capabilities": self.capabilities,
-                    "specialties": ["任务调度", "任务管理", "任务跟踪", "任务分配"],
-                })
-
-            # 4. 启动消息接收循环和心跳
-            self._running = True
-            self._keepalive_task = asyncio.create_task(self._keepalive_loop())
-            self._receive_task = asyncio.create_task(self._receive_loop())
-
-            print(f"[MeshClient] task-dispatcher 已在 MESH 上线")
-            return True
-
-        except Exception as e:
-            print(f"[MeshClient] MESH 连接失败: {e}")
-            self._token = None
-            self._ws = None
-            return False
+        print(f"[MeshClient] MESH 连接已停止")
 
     async def disconnect(self):
         """断开 MESH 连接"""
@@ -371,12 +390,10 @@ async def lifespan(app: FastAPI):
     print("[Dispatcher] 预注册智能体...")
     await _register_default_agents()
 
-    # 连接本地 MESH
+    # 连接本地 MESH（后台任务，不阻塞 FastAPI 启动）
     mesh_client = MeshClient(config["mesh"])
-    if await mesh_client.connect():
-        print("[Dispatcher] ✓ 本地 MESH 连接成功")
-    else:
-        print("[Dispatcher] ⚠ 本地 MESH 连接失败（不影响本地运行）")
+    mesh_task = asyncio.create_task(mesh_client.connect())
+    print("[Dispatcher] ✓ 本地 MESH 连接任务已启动（后台自动重连）")
 
     # 注入MESH客户端到路由模块
     chat_route.mesh_client = mesh_client

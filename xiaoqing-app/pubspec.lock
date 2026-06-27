@@ -296,14 +296,6 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "1.0.1"
-  json_annotation:
-    dependency: transitive
-    description:
-      name: json_annotation
-      sha256: "2a743920d81b7910627f68ee2c9ac1fc0bfee32b9fc3403587d7c6791ca12f80"
-      url: "https://pub.flutter-io.cn"
-    source: hosted
-    version: "4.12.0"
   leak_tracker:
     dependency: transitive
     description:
@@ -544,6 +536,54 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "2.2.0"
+  record:
+    dependency: "direct main"
+    description:
+      name: record
+      sha256: d28ec249ee4af6753a68a7a5077d6a2eee71e38dc61a241724aded53263274ba
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "7.1.0"
+  record_android:
+    dependency: transitive
+    description:
+      name: record_android
+      sha256: "28f1108626a190e249b01ffa9f639070e31e5157474b64a5ae380bf36aec9559"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "2.1.2"
+  record_ios:
+    dependency: transitive
+    description:
+      name: record_ios
+      sha256: "21d189f49a598af4697dac4cc9e48389ac0a1fb3e916622b5504a58d9b96313e"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "2.1.1"
+  record_linux:
+    dependency: transitive
+    description:
+      name: record_linux
+      sha256: "305526af0560866a0cc4219aa3726ef8541f819e14bd5f65b73ffdb7dc5911be"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "2.1.0"
+  record_macos:
+    dependency: transitive
+    description:
+      name: record_macos
+      sha256: ced7495abf3d683e8a7dbe8fc96df8ea5722837a26f922b7cb7c5de11661bb46
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "2.1.1"
+  record_platform_interface:
+    dependency: transitive
+    description:
+      name: record_platform_interface
+      sha256: d94b37cadb8fe203e64b0e9893271c0b71b34f2550ee7fb0c6105d650e00c1f5
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "2.1.0"
   record_use:
     dependency: transitive
     description:
@@ -552,6 +592,22 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "0.6.0"
+  record_web:
+    dependency: transitive
+    description:
+      name: record_web
+      sha256: "9d2d43162afff63d8608eb09c2982b9c6898dd8fbf5b05395ca7d08305b6db40"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "2.1.0"
+  record_windows:
+    dependency: transitive
+    description:
+      name: record_windows
+      sha256: "39ca03e7ae4df5e2512bc3c92b0ef9a7b148d9295ae8ac92df6beb4daf939d94"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "2.2.0"
   shared_preferences:
     dependency: "direct main"
     description:
@@ -608,6 +664,78 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "2.4.1"
+  sherpa_onnx:
+    dependency: "direct main"
+    description:
+      name: sherpa_onnx
+      sha256: "2177e58a3ac54f14440268af71a1118bde037f0ceb3a83f97ff6abcd9831a82e"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "1.13.3"
+  sherpa_onnx_android_arm64:
+    dependency: transitive
+    description:
+      name: sherpa_onnx_android_arm64
+      sha256: "4f51639037b0dd951a0e1af4632038e03ac9ffa226a5b92c6d8fdc495ce8a491"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "1.13.3"
+  sherpa_onnx_android_armeabi:
+    dependency: transitive
+    description:
+      name: sherpa_onnx_android_armeabi
+      sha256: "845d4087fbc88b142ae632a9cd27a538a9064ab84de24537e62d80c5e405de11"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "1.13.3"
+  sherpa_onnx_android_x86:
+    dependency: transitive
+    description:
+      name: sherpa_onnx_android_x86
+      sha256: d6f1813d6a7ec28c32bc5a4e641680c574ca012a49f253a00e20bab13e16d318
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "1.13.3"
+  sherpa_onnx_android_x86_64:
+    dependency: transitive
+    description:
+      name: sherpa_onnx_android_x86_64
+      sha256: "5815b7d14804158a82615dc5381d23b3765eb29328496d6fd0888ba59168a24c"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "1.13.3"
+  sherpa_onnx_ios:
+    dependency: transitive
+    description:
+      name: sherpa_onnx_ios
+      sha256: "8c6cbd44157caf6389640640e0f40d20eb32d49f786bf455a457c47a4c6fd095"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "1.13.3"
+  sherpa_onnx_linux:
+    dependency: transitive
+    description:
+      name: sherpa_onnx_linux
+      sha256: bfb7e75568a8a104c54a49601b0818ab014aa3b20d59e94c6c050f3baf22acb8
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "1.13.3"
+  sherpa_onnx_macos:
+    dependency: transitive
+    description:
+      name: sherpa_onnx_macos
+      sha256: "9972de65e3014d47211e581d126439c4d9b67878527bf27a2fb0fb73466751bd"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "1.13.3"
+  sherpa_onnx_windows:
+    dependency: transitive
+    description:
+      name: sherpa_onnx_windows
+      sha256: aa69acb8334509f345b17c6527dc1b5920a6e5cc4d14bcba22767ae22b0ae0ad
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "1.13.3"
   sky_engine:
     dependency: transitive
     description: flutter
@@ -621,30 +749,6 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "1.10.2"
-  speech_to_text:
-    dependency: "direct main"
-    description:
-      name: speech_to_text
-      sha256: "75587f7400f485fdf166beacd471549d98fe5d58e634f708916bb65dec05d6a4"
-      url: "https://pub.flutter-io.cn"
-    source: hosted
-    version: "7.4.0"
-  speech_to_text_platform_interface:
-    dependency: transitive
-    description:
-      name: speech_to_text_platform_interface
-      sha256: a7e16e02853853ed7534ac2bde9a1c4f39c8879970a7974ac6ff832d4bdaa4b0
-      url: "https://pub.flutter-io.cn"
-    source: hosted
-    version: "2.4.0"
-  speech_to_text_windows:
-    dependency: transitive
-    description:
-      name: speech_to_text_windows
-      sha256: "2d1d10565b23262386b453b33656299608dc7a66784453735d6c1318f13f44d7"
-      url: "https://pub.flutter-io.cn"
-    source: hosted
-    version: "1.0.1"
   sqflite:
     dependency: "direct main"
     description:

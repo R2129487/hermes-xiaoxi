@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/dispatcher_api.dart';
+import '../main.dart' show api;
 import '../models/agent.dart';
 import 'chat_detail.dart';
 import 'agent_settings_screen.dart';
@@ -13,7 +13,6 @@ class ContactsScreen extends StatefulWidget {
 }
 
 class _ContactsScreenState extends State<ContactsScreen> {
-  final DispatcherApi _api = DispatcherApi();
   List<Agent> _agents = [];
   List<Agent> _filtered = [];
   bool _loading = true;
@@ -23,7 +22,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   void initState() {
     super.initState();
     _loadAgents();
-    _searchCtrl.addListener(() => _filter(null));
+    _searchCtrl.addListener(() { _filter(null); });
   }
 
   @override
@@ -34,7 +33,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   Future<void> _loadAgents() async {
     setState(() => _loading = true);
-    final agents = await _api.getAgents();
+    final agents = await api.getAgents();
     // 排序：调度员→置顶→在线→离线
     agents.sort((a, b) {
       final w = a.sortWeight.compareTo(b.sortWeight);
@@ -55,9 +54,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   // 从列表中分离调度员、智能体、用户
+  bool _isSelf(Agent a) {
+    final uid = api.currentUser?.id ?? '';
+    return uid.isNotEmpty && a.agentId == 'user_$uid';
+  }
+
   List<Agent> get _dispatchers => _filtered.where((a) => a.type == 'dispatcher').toList();
   List<Agent> get _agentList => _filtered.where((a) => a.type == 'agent').toList();
-  List<Agent> get _userList => _filtered.where((a) => a.type == 'user').toList();
+  List<Agent> get _userList => _filtered.where((a) => a.type == 'user' && !_isSelf(a)).toList();
 
   String _agentAvatar(String id) {
     switch (id) {
@@ -67,6 +71,18 @@ class _ContactsScreenState extends State<ContactsScreen> {
       case 'xiao-bai': return '白';
       case 'xiao-hei': return '黑';
       default: return '?';
+    }
+  }
+
+  /// 状态中文映射
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'online': return '🟢 在线';
+      case 'thinking': return '💭 思考中';
+      case 'working': return '⚙️ 工作中';
+      case 'idle': return '💤 空闲';
+      case 'offline': return '🔴 离线';
+      default: return status;
     }
   }
 
@@ -187,6 +203,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
             agentColor: color,
             agentAvatar: avatarChar,
             sessionId: sessionId,
+            agentStatus: a.status,
           ),
         ));
         if (changed == true) _loadAgents();
@@ -257,14 +274,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
                               borderRadius: BorderRadius.circular(3),
                             ),
                             child: Text(
-                              a.capabilities.isNotEmpty ? a.capabilities : (a.online ? '在线' : '离线'),
+                              _statusLabel(a.status),
                               style: TextStyle(color: Colors.grey[500], fontSize: 11),
                             ),
                           ),
                         )
                       else
                         Text(
-                          a.capabilities.isNotEmpty ? a.capabilities : (a.online ? '在线' : '离线'),
+                          _statusLabel(a.status),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(color: Colors.grey[500], fontSize: 12),
@@ -465,7 +482,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                   body['ssh_user'] = userCtrl.text.trim().isNotEmpty ? userCtrl.text.trim() : null;
                                   body['command_template'] = cmdCtrl.text.trim().isNotEmpty ? cmdCtrl.text.trim() : null;
                                 }
-                                final result = await _api.registerAgent(body);
+                                final result = await api.registerAgent(body);
                                 setSheetState(() => saving = false);
                                 if (ctx.mounted) Navigator.pop(ctx);
                                 if (mounted) {

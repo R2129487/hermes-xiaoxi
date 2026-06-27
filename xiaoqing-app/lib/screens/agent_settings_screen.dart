@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/dispatcher_api.dart';
+import '../main.dart' show api;
 import '../models/agent.dart';
 
 /// 智能体设置页 — 自定义备注名 + 头像颜色
@@ -14,8 +14,8 @@ class AgentSettingsScreen extends StatefulWidget {
 }
 
 class _AgentSettingsScreenState extends State<AgentSettingsScreen> {
-  final DispatcherApi _api = DispatcherApi();
   late TextEditingController _nicknameCtrl;
+  late TextEditingController _capCtrl;
   late int _selectedColor;
   late bool _pinned;
   bool _saving = false;
@@ -39,6 +39,7 @@ class _AgentSettingsScreenState extends State<AgentSettingsScreen> {
   void initState() {
     super.initState();
     _nicknameCtrl = TextEditingController(text: widget.agent.nickname);
+    _capCtrl = TextEditingController(text: widget.agent.capabilities);
     _selectedColor = widget.agent.avatarColor;
     _pinned = widget.agent.pinned;
   }
@@ -46,15 +47,17 @@ class _AgentSettingsScreenState extends State<AgentSettingsScreen> {
   @override
   void dispose() {
     _nicknameCtrl.dispose();
+    _capCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     setState(() => _saving = true);
-    final ok = await _api.updateAgentSettings(widget.agent.agentId, {
+    final ok = await api.updateAgentSettings(widget.agent.agentId, {
       'nickname': _nicknameCtrl.text.trim(),
       'avatar_color': _selectedColor,
       'pinned': _pinned,
+      'capabilities': _capCtrl.text.trim(),
     });
     if (mounted) {
       setState(() { _saving = false; _saved = ok; });
@@ -225,6 +228,46 @@ class _AgentSettingsScreenState extends State<AgentSettingsScreen> {
               value: _pinned,
               activeColor: const Color(0xFF07C160),
               onChanged: (v) => setState(() => _pinned = v),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── 能力编辑 ──
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.auto_fix_high, size: 18, color: Colors.grey[600]),
+                    const SizedBox(width: 6),
+                    Text('能力模块', style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _capCtrl,
+                  style: const TextStyle(fontSize: 15, color: Color(0xFF191919)),
+                  decoration: InputDecoration(
+                    hintText: 'chat, code, image, search,...',
+                    hintStyle: TextStyle(color: Colors.grey[400]),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '逗号分隔，如 chat,code,image,search',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[400]),
+                ),
+              ],
             ),
           ),
 
