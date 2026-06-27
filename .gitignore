@@ -14,3 +14,7 @@ xiaoxi-firmware/dependencies.lock
 .DS_Store
 __pycache__/
 .aider*
+.venv/
+__pycache__/
+*.pyc
+data/messenger.db
