@@ -3,9 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:record/record.dart';
-import 'package:path_provider/path_provider.dart';
 import '../services/dispatcher_api.dart';
 import '../services/voice_service.dart';
 import '../models/message.dart';
@@ -45,12 +42,10 @@ class _ChatDetailState extends State<ChatDetail> {
   /// 顶部实时状态（在线/正在回复...），默认用传入的状态
   String _headerStatus = '';
 
-  // 语音识别（sherpa-onnx 本地离线，点按录音→填输入框→手动发）
+  // 语音识别（sherpa-onnx 流式，边说边出字）
   final VoiceService _voice = VoiceService();
-  final AudioRecorder _recorder = AudioRecorder();
   bool _isRecording = false;
   bool _voiceReady = false;
-  String? _recordPath;
 
   @override
   void initState() {
@@ -457,66 +452,48 @@ class _ChatDetailState extends State<ChatDetail> {
       }
     }
 
-    // 只在按下麦克风时才请求权限
-    final hasPermission = await Permission.microphone.request().isGranted;
-    if (!hasPermission) {
+    // 设置流式回调
+    _voice.onPartialResult = (text) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('需要麦克风权限'), duration: Duration(seconds: 2)),
-        );
+        setState(() => _textCtrl.text = text);
       }
+    };
+    _voice.onFinalResult = (text) {
+      if (mounted && text.isNotEmpty) {
+        setState(() => _textCtrl.text = text);
+      }
+    };
+
+    // 开始流式录音
+    final ok = await _voice.startRecording();
+    if (!mounted) return;
+
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('录音启动失败: ${_voice.lastError ?? "未知错误"}'), duration: const Duration(seconds: 2)),
+      );
       return;
     }
-
-    // 开始录音
-    final dir = await getTemporaryDirectory();
-    _recordPath = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.wav';
-
-    await _recorder.start(
-      const RecordConfig(
-        encoder: AudioEncoder.wav,
-        sampleRate: 16000,
-        numChannels: 1,
-      ),
-      path: _recordPath!,
-    );
 
     setState(() => _isRecording = true);
   }
 
   Future<void> _stopRecording() async {
     if (!_isRecording) return;
-
     setState(() => _isRecording = false);
 
-    final path = _recordPath;
-    _recordPath = null;
+    // 停止录音，获取最终识别结果
+    final text = await _voice.stopRecording();
 
-    try {
-      await _recorder.stop();
-    } catch (_) {}
-
-    if (path == null || !File(path).existsSync()) return;
-
-    // sherpa-onnx 转文字
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('识别中...'), duration: Duration(seconds: 10)),
-    );
-
-    final text = await _voice.transcribe(path);
-
-    // 清理录音文件
-    try { File(path).delete(); } catch (_) {}
-
-    if (text != null && text.isNotEmpty) {
-      // ✅ 填入输入框，不自动发送
-      _textCtrl.text = text;
-      _textCtrl.selection = TextSelection.fromPosition(
-        TextPosition(offset: text.length),
-      );
-      _focusNode.requestFocus();
-    } else {
-      if (mounted) {
+    if (mounted) {
+      if (text != null && text.isNotEmpty) {
+        // ✅ 填入输入框，不自动发送
+        _textCtrl.text = text;
+        _textCtrl.selection = TextSelection.fromPosition(
+          TextPosition(offset: text.length),
+        );
+        _focusNode.requestFocus();
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('未识别到文字，请重试'), duration: Duration(seconds: 2)),
         );
