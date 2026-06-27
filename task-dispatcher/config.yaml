@@ -22,7 +22,7 @@ mesh:
   host: "127.0.0.1"
   port: 8765
   admin_user: "admin"
-  admin_password: "840601"
+  admin_password: "admin123"
   agent_id: "task-dispatcher"
   capabilities: ["task_dispatch", "task_manage", "task_track", "task_assign"]
 

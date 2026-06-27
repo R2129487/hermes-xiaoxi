@@ -321,48 +321,102 @@ dispatcher_core = DispatcherCore(storage, config)
 
 
 # ==================== 离线检测循环 ====================
+# ==================== MESH 状态同步循环 ====================
 
-_offline_checker_task: asyncio.Task = None  # type: ignore
+_mesh_sync_task: asyncio.Task = None  # type: ignore
 
+# MESH agent_id → 调度器 agent_id 映射
+_MESH_TO_DISPATCHER = {
+    "xiaolan": "xiao-lan",
+    "xiaoqing": "xiao-qing",
+    "xiaobai": "xiao-bai",
+    "xiaohei": "xiao-hei",
+    "task-dispatcher": "dispatcher",
+}
 
-async def _offline_checker_loop():
-    """周期性检测智能体离线状态 — 标记长时间无响应的为离线"""
-    threshold = config.get("agents", {}).get("offline_threshold", 120)
-    check_interval = config.get("agents", {}).get("heartbeat_interval", 30)
+async def _mesh_sync_loop():
+    """周期性从 MESH 服务端同步智能体在线状态"""
+    import httpx
+    interval = config.get("agents", {}).get("heartbeat_interval", 30)
+    mesh_host = config.get("mesh", {}).get("host", "127.0.0.1")
+    mesh_port = config.get("mesh", {}).get("port", 8765)
+    mesh_user = config.get("mesh", {}).get("admin_user", "admin")
+    mesh_pass = config.get("mesh", {}).get("admin_password", "admin123")
+
     while True:
-        await asyncio.sleep(check_interval)
+        await asyncio.sleep(interval)
         try:
-            agents = await storage.get_agents()
-            now = __import__("models").now_str()
-            now_dt = datetime.strptime(now, "%Y-%m-%d %H:%M:%S")
-            for agent in agents:
-                # 跳过本地智能体（调度器自己和小青都在本机）
-                if agent.connection_type == "local":
+            async with httpx.AsyncClient(timeout=10) as client:
+                # 登录获取 token
+                login_resp = await client.post(
+                    f"http://{mesh_host}:{mesh_port}/api/auth/login",
+                    json={"username": mesh_user, "password": mesh_pass},
+                )
+                if login_resp.status_code != 200:
+                    print(f"[MESH同步] 登录失败: {login_resp.status_code}")
                     continue
-                # 检查 last_seen
-                if agent.last_seen:
-                    try:
-                        last_dt = datetime.strptime(agent.last_seen, "%Y-%m-%d %H:%M:%S")
-                    except ValueError:
-                        last_dt = None
-                    if last_dt:
-                        elapsed = (now_dt - last_dt).total_seconds()
-                        if elapsed > threshold and agent.status == "online":
-                            await storage.update_agent(agent.id, {
-                                "status": "offline",
-                                "last_seen": now,
-                            })
-                            print(f"  ⚡ 标记离线: {agent.name} ({agent.id}) — {elapsed:.0f}s 无响应")
-                else:
-                    # 从未有过 last_seen → 从未上线
-                    if agent.status == "online":
+                token = login_resp.json().get("data", {}).get("token", "")
+                if not token:
+                    continue
+
+                # 获取 MESH 上的智能体列表
+                agents_resp = await client.get(
+                    f"http://{mesh_host}:{mesh_port}/api/agents",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                if agents_resp.status_code != 200:
+                    continue
+                mesh_agents = agents_resp.json().get("data", [])
+                now = __import__("models").now_str()
+
+                for ma in mesh_agents:
+                    mesh_id = ma.get("agent_id", "")
+                    dispatcher_id = _MESH_TO_DISPATCHER.get(mesh_id)
+                    if not dispatcher_id:
+                        continue
+
+                    agent = await storage.get_agent(dispatcher_id)
+                    if not agent:
+                        continue
+
+                    is_online = ma.get("online", False)
+                    new_status = "online" if is_online else "offline"
+
+                    # 只在状态变化时更新
+                    if agent.status != new_status:
+                        await storage.update_agent(dispatcher_id, {
+                            "status": new_status,
+                            "last_seen": now,
+                        })
+                        emoji = "🟢" if is_online else "⚪"
+                        print(f"  {emoji} MESH同步: {agent.name} → {new_status}")
+                    else:
+                        # 即使状态没变，也更新 last_seen
+                        await storage.update_agent(dispatcher_id, {
+                            "last_seen": now,
+                        })
+
+                # 标记未在 MESH 列表中的远程agent为离线
+                mesh_agent_ids = {ma.get("agent_id") for ma in mesh_agents}
+                all_agents = await storage.get_agents()
+                for agent in all_agents:
+                    if agent.connection_type == "local":
+                        continue
+                    # 找对应的 MESH ID
+                    mesh_id = None
+                    for mid, did in _MESH_TO_DISPATCHER.items():
+                        if did == agent.id:
+                            mesh_id = mid
+                            break
+                    if mesh_id and mesh_id not in mesh_agent_ids and agent.status == "online":
                         await storage.update_agent(agent.id, {
                             "status": "offline",
                             "last_seen": now,
                         })
-                        print(f"  ⚡ 标记离线: {agent.name} ({agent.id}) — 从未上线")
+                        print(f"  ⚪ MESH同步: {agent.name} → offline（不在MESH列表中）")
+
         except Exception as e:
-            print(f"[离线检测] 异常: {e}")
+            print(f"[MESH同步] 异常: {e}")
 
 
 # ==================== 生命周期管理 ====================
@@ -453,10 +507,10 @@ async def lifespan(app: FastAPI):
 
     print(f"[Dispatcher] 任务调度器启动完成，监听端口 {config['server']['port']}")
 
-    # 启动离线检测
-    global _offline_checker_task
-    _offline_checker_task = asyncio.create_task(_offline_checker_loop())
-    print(f"[Dispatcher] ✓ 离线检测已启动")
+    # 启动 MESH 状态同步
+    global _mesh_sync_task
+    _mesh_sync_task = asyncio.create_task(_mesh_sync_loop())
+    print(f"[Dispatcher] ✓ MESH 状态同步已启动（每30s）")
 
     yield
     # 关闭时：清理资源
