@@ -19,3 +19,6 @@ __pycache__/
 *.pyc
 data/messenger.db
 *.db
+
+# 本地AI模型（太大，不进git）
+xiaoqing-app/assets/models/
