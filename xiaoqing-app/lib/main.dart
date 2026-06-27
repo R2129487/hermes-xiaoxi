@@ -3,6 +3,7 @@ import 'package:sherpa_onnx/sherpa_onnx.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/dispatcher_api.dart';
+import 'services/notification_service.dart';
 
 /// 全局主题切换
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
@@ -22,6 +23,8 @@ Future<void> main() async {
   }
 
   await api.init();
+  // 初始化通知
+  await NotificationService().init();
   runApp(const XiaoQingApp());
 }
 

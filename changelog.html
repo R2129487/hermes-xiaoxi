@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>更新日志 — 小希</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            line-height: 1.8;
+        }
+        nav {
+            position: fixed; top: 0; width: 100%;
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 1000; padding: 1rem 0;
+        }
+        nav .container {
+            max-width: 900px; margin: 0 auto; padding: 0 20px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        nav .logo {
+            font-size: 1.5rem; font-weight: bold;
+            background: linear-gradient(90deg, #00ff88, #00d4ff);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text; text-decoration: none;
+        }
+        nav ul { display: flex; list-style: none; gap: 2rem; }
+        nav ul li a { color: #e0e0e0; text-decoration: none; transition: color 0.3s; }
+        nav ul li a:hover { color: #00ff88; }
+
+        .container { max-width: 900px; margin: 0 auto; padding: 0 20px; }
+        .page-header {
+            padding: 140px 0 60px;
+            text-align: center;
+        }
+        .page-header h1 {
+            font-size: 2.8rem;
+            background: linear-gradient(90deg, #00ff88, #00d4ff);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .page-header p { color: #888; font-size: 1.1rem; margin-top: 0.5rem; }
+
+        .changelog { padding: 40px 0 100px; }
+
+        .version-block {
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 12px;
+            padding: 2rem 2.5rem;
+            margin-bottom: 2rem;
+            transition: border-color 0.3s;
+        }
+        .version-block:hover { border-color: #00ff88; }
+
+        .version-header {
+            display: flex; align-items: center; gap: 1rem;
+            margin-bottom: 1.5rem; flex-wrap: wrap;
+        }
+        .version-tag {
+            font-size: 1.8rem; font-weight: 700;
+            color: #fff;
+        }
+        .version-date {
+            color: #666; font-size: 0.95rem;
+        }
+        .version-badge {
+            display: inline-block;
+            padding: 0.2rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .badge-latest {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+        }
+
+        .change-section { margin-bottom: 1.5rem; }
+        .change-section:last-child { margin-bottom: 0; }
+        .change-section h3 {
+            color: #00d4ff; font-size: 1rem; font-weight: 600;
+            margin-bottom: 0.8rem;
+            text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .change-section ul {
+            list-style: none; padding: 0;
+        }
+        .change-section li {
+            padding: 0.4rem 0 0.4rem 1.2rem;
+            color: #ccc;
+            position: relative;
+        }
+        .change-section li::before {
+            content: '→';
+            position: absolute; left: 0;
+            color: #00ff88;
+        }
+        .change-section li strong {
+            color: #fff;
+        }
+        .change-section li .desc {
+            color: #999;
+        }
+
+        .files-changed {
+            margin-top: 1rem;
+            padding: 0.8rem 1rem;
+            background: #0d0d0d;
+            border: 1px solid #222;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        footer {
+            padding: 2rem 0; text-align: center;
+            color: #555; border-top: 1px solid #222;
+        }
+        footer a { color: #00ff88; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        @media (max-width: 600px) {
+            .page-header h1 { font-size: 2rem; }
+            .version-block { padding: 1.5rem; }
+            .version-tag { font-size: 1.4rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <a href="product-architecture.html" class="logo">小希</a>
+            <ul>
+                <li><a href="product-architecture.html">架构</a></li>
+                <li><a href="changelog.html">更新日志</a></li>
+                <li><a href="https://github.com/R2129487/hermes-xiaoxi">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="page-header">
+        <div class="container">
+            <h1>更新日志</h1>
+            <p>小希 App 每个版本的功能演进与修复记录</p>
+        </div>
+    </div>
+
+    <section class="changelog">
+        <div class="container">
+
+            <!-- v0.1.2 -->
+            <div class="version-block">
+                <div class="version-header">
+                    <span class="version-tag">v0.1.2</span>
+                    <span class="version-badge badge-latest">最新</span>
+                    <span class="version-date">2026-06-27</span>
+                </div>
+
+                <div class="change-section">
+                    <h3>✨ 新功能</h3>
+                    <ul>
+                        <li><strong>流式语音识别</strong> — <span class="desc">基于 Zipformer-zh-int8 模型，边说边出字，告别等待</span></li>
+                        <li><strong>系统通知</strong> — <span class="desc">收到智能体回复时，状态栏弹出通知 + App图标角标</span></li>
+                        <li><strong>用户间私聊</strong> — <span class="desc">联系人列表点击用户头像，进入一对一私聊</span></li>
+                        <li><strong>调度器用户路由</strong> — <span class="desc">后端支持用户间消息转发，会话ID自动对齐</span></li>
+                    </ul>
+                </div>
+
+                <div class="change-section">
+                    <h3>🔄 改进</h3>
+                    <ul>
+                        <li><strong>语音模型优化</strong> — <span class="desc">从 Paraformer（606MB）迁移到 Zipformer-zh-int8（160MB），APK 体积可控</span></li>
+                        <li><strong>语音按钮逻辑</strong> — <span class="desc">麦克风和发送按钮解耦——录音中随时可发送，按钮始终可见</span></li>
+                        <li><strong>UI布局优化</strong> — <span class="desc">注册表单、设置页保存按钮固定底部，不随内容滚动</span></li>
+                        <li><strong>聊天文本累积</strong> — <span class="desc">语音识别结果追加到输入框，不再每次覆盖</span></li>
+                    </ul>
+                </div>
+
+                <div class="files-changed">14 files changed, +541/-380 lines</div>
+            </div>
+
+            <!-- v0.1.1 -->
+            <div class="version-block">
+                <div class="version-header">
+                    <span class="version-tag">v0.1.1</span>
+                    <span class="version-date">2026-06-26</span>
+                </div>
+
+                <div class="change-section">
+                    <h3>✨ 新功能</h3>
+                    <ul>
+                        <li><strong>用户认证系统</strong> — <span class="desc">JWT 登录/注册，bcrypt 密码加密，token 自动持久化</span></li>
+                        <li><strong>三级权限体系</strong> — <span class="desc">admin / operator / observer 角色，注册自动降级防越权</span></li>
+                        <li><strong>用户管理页面</strong> — <span class="desc">管理员在设置页查看所有用户、修改角色</span></li>
+                        <li><strong>联系人搜索</strong> — <span class="desc">按名称/ID 实时过滤</span></li>
+                        <li><strong>APP内注册智能体</strong> — <span class="desc">联系人页底部表单，支持声明能力模块</span></li>
+                        <li><strong>暗色模式</strong> — <span class="desc">全页面覆盖，一键切换</span></li>
+                        <li><strong>用户删除</strong> — <span class="desc">管理页可删除用户，需输入 OK 二次确认</span></li>
+                    </ul>
+                </div>
+
+                <div class="change-section">
+                    <h3>🔄 改进</h3>
+                    <ul>
+                        <li><strong>仓库重构</strong> — <span class="desc">xiaoxi-mesh → hermes-xiaoxi，三模块合一</span></li>
+                        <li><strong>Flutter 3.44</strong> — <span class="desc">全面兼容最新 SDK，移除弃用 API</span></li>
+                        <li><strong>WebSocket 通信</strong> — <span class="desc">连接稳定性优化，断线重连机制</span></li>
+                    </ul>
+                </div>
+
+                <div class="files-changed">61 files changed, +4911/-1659 lines</div>
+            </div>
+
+            <!-- v0.1.0 -->
+            <div class="version-block">
+                <div class="version-header">
+                    <span class="version-tag">v0.1.0</span>
+                    <span class="version-date">2026-06-10</span>
+                </div>
+
+                <div class="change-section">
+                    <h3>✨ 初始发布</h3>
+                    <ul>
+                        <li><strong>Flutter 移动端</strong> — <span class="desc">微信风格三标签界面（聊天/联系人/设置）</span></li>
+                        <li><strong>FastAPI 调度器</strong> — <span class="desc">智能体注册/任务分配/记忆管理/MESH 通信</span></li>
+                        <li><strong>MESH 通信协议</strong> — <span class="desc">WebSocket + SSH 远程执行</span></li>
+                        <li><strong>Web 前端</strong> — <span class="desc">5 页面：聊天、智能体管理、系统配置、记忆管理、调度面板</span></li>
+                        <li><strong>REST API</strong> — <span class="desc">智能体 CRUD、聊天会话、记忆存储、OpenAI 兼容格式</span></li>
+                    </ul>
+                </div>
+
+                <div class="files-changed">初始版本</div>
+            </div>
+
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>小希 — 多Agent智能协作平台 | <a href="https://github.com/R2129487/hermes-xiaoxi">GitHub</a> · <a href="https://hxx.xixisz.top">官网</a></p>
+        </div>
+    </footer>
+</body>
+</html>

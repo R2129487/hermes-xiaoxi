@@ -188,7 +188,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Widget _buildAgentTile(Agent a) {
-    final sessionId = 'session_agent_${a.agentId}';
+    final uid = api.currentUser?.id ?? '';
+    // 用户间私聊用双向session ID，确保双方看到同一会话
+    final sessionId = a.type == 'user'
+        ? (uid.compareTo(a.agentId) < 0
+            ? 'session_user_${uid}_${a.agentId}'
+            : 'session_user_${a.agentId}_${uid}')
+        : 'session_agent_${a.agentId}';
     final name = a.showName;
     final color = Color(a.avatarColor);
     final avatarChar = a.avatar.isNotEmpty ? a.avatar : _agentAvatar(a.agentId);
@@ -334,16 +340,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20, right: 20, top: 20,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-              ),
-              child: SingleChildScrollView(
+            final screenHeight = MediaQuery.of(ctx).size.height;
+            return SizedBox(
+              height: screenHeight * 0.75,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 20, right: 20, top: 20,
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+                ),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // 标题栏
                     Row(
                       children: [
                         Icon(Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary),
@@ -357,155 +364,167 @@ class _ContactsScreenState extends State<ContactsScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    // ID
-                    TextField(
-                      controller: idCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'ID（唯一标识，如 xiao-hong）',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // 名称
-                    TextField(
-                      controller: nameCtrl,
-                      decoration: const InputDecoration(
-                        labelText: '名称（显示用，如 小红）',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // 能力
-                    TextField(
-                      controller: capCtrl,
-                      decoration: const InputDecoration(
-                        labelText: '能力（逗号分隔，如 chat,code）',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // 连接方式
-                    const Text('连接方式', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
-                    const SizedBox(height: 8),
-                    SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(value: 'local', label: Text('本机'), icon: Icon(Icons.computer, size: 16)),
-                        ButtonSegment(value: 'ssh', label: Text('SSH'), icon: Icon(Icons.dns, size: 16)),
-                      ],
-                      selected: {connType},
-                      onSelectionChanged: (s) => setSheetState(() => connType = s.first),
-                    ),
-                    if (connType == 'ssh') ...[
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: hostCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'IP 地址',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: portCtrl,
-                              keyboardType: TextInputType.number,
+                    // 可滚动表单区域
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                          // ID
+                          TextField(
+                            controller: idCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'ID（唯一标识，如 xiao-hong）',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          // 名称
+                          TextField(
+                            controller: nameCtrl,
+                            decoration: const InputDecoration(
+                              labelText: '名称（显示用，如 小红）',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          // 能力
+                          TextField(
+                            controller: capCtrl,
+                            decoration: const InputDecoration(
+                              labelText: '能力（逗号分隔，如 chat,code）',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          // 连接方式
+                          const Text('连接方式', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
+                          const SizedBox(height: 8),
+                          SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(value: 'local', label: Text('本机'), icon: Icon(Icons.computer, size: 16)),
+                              ButtonSegment(value: 'ssh', label: Text('SSH'), icon: Icon(Icons.dns, size: 16)),
+                            ],
+                            selected: {connType},
+                            onSelectionChanged: (s) => setSheetState(() => connType = s.first),
+                          ),
+                          if (connType == 'ssh') ...[
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: hostCtrl,
                               decoration: const InputDecoration(
-                                labelText: '端口',
+                                labelText: 'IP 地址',
                                 border: OutlineInputBorder(),
                                 isDense: true,
                                 contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextField(
-                              controller: userCtrl,
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: portCtrl,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: '端口',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextField(
+                                    controller: userCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'SSH 用户',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: cmdCtrl,
                               decoration: const InputDecoration(
-                                labelText: 'SSH 用户',
+                                labelText: '命令模板（可选）',
+                                hintText: "hermes -z '{task}' --yolo",
                                 border: OutlineInputBorder(),
                                 isDense: true,
                                 contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                               ),
                             ),
-                          ),
+                          ],
+                          const SizedBox(height: 20),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: cmdCtrl,
-                        decoration: const InputDecoration(
-                          labelText: '命令模板（可选）',
-                          hintText: "hermes -z '{task}' --yolo",
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: saving
-                            ? null
-                            : () async {
-                                final id = idCtrl.text.trim();
-                                final name = nameCtrl.text.trim();
-                                if (id.isEmpty || name.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('ID 和名称不能为空')),
-                                  );
-                                  return;
-                                }
-                                setSheetState(() => saving = true);
-                                final Map<String, dynamic> body = {
-                                  'id': id,
-                                  'name': name,
-                                  'capabilities': capCtrl.text.trim(),
-                                  'connection_type': connType,
-                                };
-                                if (connType == 'ssh') {
-                                  body['host'] = hostCtrl.text.trim();
-                                  body['port'] = int.tryParse(portCtrl.text.trim());
-                                  body['ssh_user'] = userCtrl.text.trim().isNotEmpty ? userCtrl.text.trim() : null;
-                                  body['command_template'] = cmdCtrl.text.trim().isNotEmpty ? cmdCtrl.text.trim() : null;
-                                }
-                                final result = await api.registerAgent(body);
-                                setSheetState(() => saving = false);
-                                if (ctx.mounted) Navigator.pop(ctx);
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(result['ok'] ? '✅ 注册成功' : '❌ ${result['message']}'),
-                                    ),
-                                  );
-                                  if (result['ok']) _loadAgents();
-                                }
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        child: saving
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Text('注册', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                      ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 12),
+                  // 注册按钮（固定在底部）
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              final id = idCtrl.text.trim();
+                              final name = nameCtrl.text.trim();
+                              if (id.isEmpty || name.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('ID 和名称不能为空')),
+                                );
+                                return;
+                              }
+                              setSheetState(() => saving = true);
+                              final Map<String, dynamic> body = {
+                                'id': id,
+                                'name': name,
+                                'capabilities': capCtrl.text.trim(),
+                                'connection_type': connType,
+                              };
+                              if (connType == 'ssh') {
+                                body['host'] = hostCtrl.text.trim();
+                                body['port'] = int.tryParse(portCtrl.text.trim());
+                                body['ssh_user'] = userCtrl.text.trim().isNotEmpty ? userCtrl.text.trim() : null;
+                                body['command_template'] = cmdCtrl.text.trim().isNotEmpty ? cmdCtrl.text.trim() : null;
+                              }
+                              final result = await api.registerAgent(body);
+                              setSheetState(() => saving = false);
+                              if (ctx.mounted) Navigator.pop(ctx);
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(result['ok'] ? '✅ 注册成功' : '❌ ${result['message']}'),
+                                  ),
+                                );
+                                if (result['ok']) _loadAgents();
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: saving
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Text('注册', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ],
+              ),
               ),
             );
           },

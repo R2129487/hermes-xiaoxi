@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.2] — 2026-06-27
+
+### Added
+- **流式语音识别**：基于 Zipformer-zh-int8 模型，边说边出字，用户体验大幅提升
+- **系统通知**：收到智能体回复时，系统状态栏弹出通知 + App图标角标提示
+- **用户间私聊**：联系人列表点击用户头像，进入一对一私聊会话
+- **调度器用户路由**：后端支持用户间消息转发，会话ID自动对齐
+
+### Changed
+- **语音模型切换**：从 Paraformer（606MB）迁移到 Zipformer-zh-int8（160MB），APK 体积可控
+- **语音按钮逻辑**：麦克风和发送按钮解耦——录音中随时可发送，按钮始终可见
+- **UI布局优化**：注册智能体表单、设置页保存按钮固定在底部，不随内容滚动
+- **聊天文本累积**：语音识别结果追加到输入框，不再每次覆盖
+
+### Architecture
+- `xiaoqing-app/lib/services/voice_service.dart` — 流式识别配置，Zipformer Transducer 架构
+- `xiaoqing-app/lib/services/notification_service.dart` — 本地通知服务
+- `task-dispatcher/routes/chat.py` — 新增用户间消息路由
+
+**Files changed:** 14 files, +541/-380 lines
+
+---
+
 ## [0.1.1] — 2026-06-26
 
 ### Added
@@ -53,26 +76,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 三模块架构：client/ (Web) + server/ (FastAPI) + app/ (Flutter)
 - SQLite 本地持久化存储
 - OpenAI 兼容格式 API 端点
-
----
-
-## Template
-
-```markdown
-## [Unreleased]
-
-### Added
-- 
-
-### Changed
-- 
-
-### Fixed
-- 
-
-### Removed
-- 
-```
 
 ---
 

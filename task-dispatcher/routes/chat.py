@@ -308,6 +308,20 @@ async def _process_message(task_id: str, message: str, session_id: str, agent_id
     """后台异步处理消息，逐步更新状态"""
     try:
         await storage.update_message_task(task_id, "processing", "处理中")
+        # ── 用户间私聊 ──
+        target_user = await storage.get_user(user_id=agent_id)
+        if target_user is not None:
+            await storage.update_message_task(task_id, "forwarding", f"转发至 {target_user.display_name or target_user.username}")
+            # 存到发送者的会话
+            await _save_message(session_id, "user", message, user_id=user.id)
+            # 存到接收者的会话（双向同步）
+            # 用排序保证双方用同一 session ID
+            ids = sorted([user.id, agent_id])
+            peer_session = f"session_user_{ids[0]}_{ids[1]}"
+            await _save_message(peer_session, "user", message, user_id=user.id)
+            # 标记完成（用户间消息不需要等待回复）
+            await storage.update_message_task(task_id, "completed", "已送达")
+            return
 
         # ── 本地智能体（xiao-qing）──
         if agent_id == "xiao-qing":

@@ -7,8 +7,8 @@ import 'package:sherpa_onnx/sherpa_onnx.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
-/// 语音识别服务 — 基于 sherpa-onnx 流式 Paraformer
-/// 边说边出字，体验接近微信
+/// 语音识别服务 — 基于 sherpa-onnx 流式 Zipformer-zh-int8
+/// 边说边出字，体验接近微信，模型约160M
 class VoiceService {
   OnlineRecognizer? _recognizer;
   OnlineStream? _stream;
@@ -37,38 +37,43 @@ class VoiceService {
     try {
       // 解压流式模型到缓存目录
       final dir = await getTemporaryDirectory();
-      final modelDir = Directory('${dir.path}/streaming_paraformer_zh');
+      final modelDir = Directory('${dir.path}/streaming_zipformer_zh_int8');
       if (!await modelDir.exists()) {
-        print('[VoiceService] 📦 首次加载，解压流式模型到 ${modelDir.path}');
+        print('[VoiceService] 📦 首次加载，解压Zipformer-zh-int8流式模型到 ${modelDir.path}');
         await modelDir.create(recursive: true);
-        await _copyAsset('assets/models/streaming-paraformer-zh/encoder.onnx',
-            '${modelDir.path}/encoder.onnx');
-        await _copyAsset('assets/models/streaming-paraformer-zh/decoder.onnx',
+        await _copyAsset('assets/models/streaming-zipformer-zh-int8/encoder.int8.onnx',
+            '${modelDir.path}/encoder.int8.onnx');
+        await _copyAsset('assets/models/streaming-zipformer-zh-int8/decoder.onnx',
             '${modelDir.path}/decoder.onnx');
-        await _copyAsset('assets/models/streaming-paraformer-zh/tokens.txt',
+        await _copyAsset('assets/models/streaming-zipformer-zh-int8/joiner.int8.onnx',
+            '${modelDir.path}/joiner.int8.onnx');
+        await _copyAsset('assets/models/streaming-zipformer-zh-int8/tokens.txt',
             '${modelDir.path}/tokens.txt');
-        print('[VoiceService] ✅ 流式模型解压完成');
+        print('[VoiceService] ✅ Zipformer-zh-int8流式模型解压完成');
       }
 
       // 检查模型文件
-      final encoderFile = File('${modelDir.path}/encoder.onnx');
+      final encoderFile = File('${modelDir.path}/encoder.int8.onnx');
       final decoderFile = File('${modelDir.path}/decoder.onnx');
+      final joinerFile = File('${modelDir.path}/joiner.int8.onnx');
       final tokensFile = File('${modelDir.path}/tokens.txt');
       if (!await encoderFile.exists() ||
           !await decoderFile.exists() ||
+          !await joinerFile.exists() ||
           !await tokensFile.exists()) {
-        _lastError = '流式模型文件缺失，尝试重新解压';
+        _lastError = 'Zipformer-zh-int8模型文件缺失，尝试重新解压';
         print('[VoiceService] ❌ $_lastError');
         await modelDir.delete(recursive: true);
         return false;
       }
 
-      print('[VoiceService] ⚙️ 创建流式识别引擎...');
+      print('[VoiceService] ⚙️ 创建Zipformer-zh-int8流式识别引擎...');
       final config = OnlineRecognizerConfig(
         model: OnlineModelConfig(
-          paraformer: OnlineParaformerModelConfig(
+          transducer: OnlineTransducerModelConfig(
             encoder: encoderFile.path,
             decoder: decoderFile.path,
+            joiner: joinerFile.path,
           ),
           tokens: tokensFile.path,
           numThreads: 4,
@@ -86,7 +91,7 @@ class VoiceService {
       _recorder = AudioRecorder();
       _initialized = true;
       _lastError = null;
-      print('[VoiceService] ✅ 流式语音引擎初始化成功');
+      print('[VoiceService] ✅ Zipformer-zh-int8流式语音引擎初始化成功');
       return true;
     } catch (e) {
       _lastError = '$e';

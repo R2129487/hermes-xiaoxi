@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/dispatcher_api.dart';
 import '../services/voice_service.dart';
+import '../services/notification_service.dart';
 import '../models/message.dart';
 import '../main.dart' show api;
 
@@ -45,6 +46,7 @@ class _ChatDetailState extends State<ChatDetail> {
   // 语音识别（sherpa-onnx 流式，边说边出字）
   final VoiceService _voice = VoiceService();
   bool _isRecording = false;
+  String _voiceAccumulated = '';  // 流式识别累积文本
   bool _voiceReady = false;
 
   @override
@@ -148,6 +150,12 @@ class _ChatDetailState extends State<ChatDetail> {
                 ));
               });
               _scrollToBottom();
+              // 弹通知
+              NotificationService().showMessageNotification(
+                agentName: widget.agentName,
+                content: reply.length > 100 ? '${reply.substring(0, 100)}...' : reply,
+                chatIndex: widget.sessionId.hashCode,
+              );
             }
             return;
           }
@@ -455,16 +463,18 @@ class _ChatDetailState extends State<ChatDetail> {
     // 设置流式回调
     _voice.onPartialResult = (text) {
       if (mounted) {
-        setState(() => _textCtrl.text = text);
+        setState(() => _textCtrl.text = _voiceAccumulated + text);
       }
     };
     _voice.onFinalResult = (text) {
       if (mounted && text.isNotEmpty) {
-        setState(() => _textCtrl.text = text);
+        _voiceAccumulated += text;
+        setState(() => _textCtrl.text = _voiceAccumulated);
       }
     };
 
     // 开始流式录音
+    _voiceAccumulated = '';
     final ok = await _voice.startRecording();
     if (!mounted) return;
 
@@ -484,13 +494,15 @@ class _ChatDetailState extends State<ChatDetail> {
 
     // 停止录音，获取最终识别结果
     final text = await _voice.stopRecording();
+    final fullText = _voiceAccumulated + (text ?? '');
+    _voiceAccumulated = '';
 
     if (mounted) {
-      if (text != null && text.isNotEmpty) {
+      if (fullText.isNotEmpty) {
         // ✅ 填入输入框，不自动发送
-        _textCtrl.text = text;
+        _textCtrl.text = fullText;
         _textCtrl.selection = TextSelection.fromPosition(
-          TextPosition(offset: text.length),
+          TextPosition(offset: fullText.length),
         );
         _focusNode.requestFocus();
       } else {
@@ -837,7 +849,7 @@ class _ChatDetailState extends State<ChatDetail> {
             padding: const EdgeInsets.only(bottom: 4),
             constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
           ),
-          // 文本输入
+          // 文本输入 + 话筒（微信风格：话筒在输入框内右侧）
           Expanded(
             child: Container(
               constraints: const BoxConstraints(maxHeight: 100),
@@ -846,57 +858,64 @@ class _ChatDetailState extends State<ChatDetail> {
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: const Color(0xFFD9D9D9), width: 0.5),
               ),
-              child: TextField(
-                controller: _textCtrl,
-                focusNode: _focusNode,
-                maxLines: null,
-                minLines: 1,
-                style: const TextStyle(fontSize: 16, color: Color(0xFF191919)),
-                decoration: const InputDecoration(
-                  hintText: '输入消息...',
-                  hintStyle: TextStyle(color: Color(0xFFB0B0B0)),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  isCollapsed: true,
-                ),
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _sendMessage(),
+              child: Row(
+                children: [
+                  // 输入框
+                  Expanded(
+                    child: TextField(
+                      controller: _textCtrl,
+                      focusNode: _focusNode,
+                      maxLines: null,
+                      minLines: 1,
+                      style: const TextStyle(fontSize: 16, color: Color(0xFF191919)),
+                      decoration: const InputDecoration(
+                        hintText: '输入消息...',
+                        hintStyle: TextStyle(color: Color(0xFFB0B0B0)),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        isCollapsed: true,
+                      ),
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _sendMessage(),
+                    ),
+                  ),
+                  // 🎤 话筒（输入框内右侧）
+                  GestureDetector(
+                    onTap: _toggleRecording,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: 32, height: 32,
+                      margin: const EdgeInsets.only(right: 6),
+                      decoration: BoxDecoration(
+                        color: _isRecording ? const Color(0xFF07C160).withOpacity(0.15) : Colors.transparent,
+                        shape: BoxShape.circle,
+                        border: _isRecording
+                            ? Border.all(color: const Color(0xFF07C160), width: 2)
+                            : null,
+                        boxShadow: _isRecording
+                            ? [BoxShadow(
+                                color: const Color(0xFF07C160).withOpacity(0.3),
+                                blurRadius: 8,
+                                spreadRadius: 1,
+                              )]
+                            : null,
+                      ),
+                      child: Icon(
+                        _isRecording ? Icons.mic : Icons.mic_none,
+                        color: _isRecording ? const Color(0xFF07C160) : const Color(0xFF8E8E93),
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(width: 2),
-          // 🎤 语音（点一下录音→绿环→再点一下停→文字填入输入框）
-          if (_textCtrl.text.isEmpty || _isRecording)
+          const SizedBox(width: 4),
+          // ⬆️ 发送（输入框外右侧，有文字时显示）
+          if (_textCtrl.text.isNotEmpty)
             GestureDetector(
-              onTap: _toggleRecording,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: 36, height: 36,
-                margin: const EdgeInsets.only(bottom: 2),
-                decoration: BoxDecoration(
-                  color: _isRecording ? const Color(0xFF07C160).withOpacity(0.15) : Colors.transparent,
-                  shape: BoxShape.circle,
-                  border: _isRecording
-                      ? Border.all(color: const Color(0xFF07C160), width: 2)
-                      : null,
-                  boxShadow: _isRecording
-                      ? [BoxShadow(
-                          color: const Color(0xFF07C160).withOpacity(0.3),
-                          blurRadius: 8,
-                          spreadRadius: 1,
-                        )]
-                      : null,
-                ),
-                child: Icon(
-                  _isRecording ? Icons.mic : Icons.mic_none,
-                  color: _isRecording ? const Color(0xFF07C160) : const Color(0xFF8E8E93),
-                  size: 26,
-                ),
-              ),
-            )
-          else
-            GestureDetector(
-              onTap: _textCtrl.text.isNotEmpty ? () => _sendMessage() : null,
+              onTap: () => _sendMessage(),
               child: Container(
                 width: 36, height: 36,
                 margin: const EdgeInsets.only(bottom: 2),
@@ -907,12 +926,14 @@ class _ChatDetailState extends State<ChatDetail> {
                 child: const Icon(Icons.arrow_upward, color: Colors.white, size: 20),
               ),
             ),
+          // 占位（没有文字时保持布局）
+          if (_textCtrl.text.isEmpty)
+            const SizedBox(width: 36),
         ],
       ),
     );
   }
 }
-
 /// 气泡三角绘制
 class TrianglePainter extends CustomPainter {
   final bool isLeft;
