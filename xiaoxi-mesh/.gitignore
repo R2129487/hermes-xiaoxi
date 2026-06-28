@@ -1,2 +1,6 @@
 xiaoxi-mesh/
 xiaoxi-mesh-v1-archive/
+xiaoqing-app/assets/models/
+xiaoqing-app/android/build/
+xiaoqing-app/android_bak/
+*.onnx
