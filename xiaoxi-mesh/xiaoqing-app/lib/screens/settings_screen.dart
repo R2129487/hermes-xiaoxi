@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/dispatcher_api.dart';
 import '../main.dart' show themeNotifier, api;
 import '../models/user.dart';
+import '../services/app_config_service.dart';
 import 'login_screen.dart';
 
 /// 设置页面
@@ -237,7 +238,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Icon(Icons.info_outline, size: 14, color: Colors.grey[400]),
                       const SizedBox(width: 6),
                       Text(
-                        '版本: v2.1.0',
+                        '版本: v${AppConfigService.instance.config?.versionLabel ?? "unknown"}',
                         style: TextStyle(fontSize: 12, color: Colors.grey[400]),
                       ),
                     ],

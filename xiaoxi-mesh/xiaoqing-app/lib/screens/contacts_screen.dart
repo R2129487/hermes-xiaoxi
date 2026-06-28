@@ -115,7 +115,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
               controller: _searchCtrl,
               style: const TextStyle(fontSize: 14),
               decoration: InputDecoration(
-                hintText: '搜索智能体',
+                hintText: '搜索联系人',
                 hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
                 prefixIcon: Icon(Icons.search, color: Colors.grey[400], size: 20),
                 border: InputBorder.none,
@@ -137,20 +137,20 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     children: [
                       // ─── 调度员（置顶） ───
                       if (_dispatchers.isNotEmpty) ...[
-                        _buildSectionHeader('调度员', 'top'),
+                        _buildSectionHeader('调度员', 'top', count: _dispatchers.length),
                         if (!_collapsed.contains('调度员'))
                           ..._dispatchers.map((a) => _buildAgentTile(a)),
                       ],
                       // ─── 智能体 ───
                       if (_agentList.isNotEmpty) ...[
-                        _buildSectionHeader('智能体 (${_agentList.length})', 'bottom'),
-                        if (!_collapsed.contains('智能体 (${_agentList.length})'))
+                        _buildSectionHeader('智能体', 'bottom', count: _agentList.length),
+                        if (!_collapsed.contains('智能体'))
                           ..._agentList.map((a) => _buildAgentTile(a)),
                       ],
                       // ─── 用户 ───
                       if (_userList.isNotEmpty) ...[
-                        _buildSectionHeader('用户 (${_userList.length})', 'bottom'),
-                        if (!_collapsed.contains('用户 (${_userList.length})'))
+                        _buildSectionHeader('用户', 'bottom', count: _userList.length),
+                        if (!_collapsed.contains('用户'))
                           ..._userList.map((a) => _buildAgentTile(a)),
                       ],
                       // ─── 搜索无结果 ───
@@ -190,8 +190,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title, String pos) {
+  Widget _buildSectionHeader(String title, String pos, {int? count}) {
     final isCollapsed = _collapsed.contains(title);
+    final label = count != null ? '$title ($count)' : title;
     return Container(
       padding: EdgeInsets.fromLTRB(16, pos == 'top' ? 4 : 16, 16, 4),
       color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1A1A1A) : const Color(0xFFF7F7F7),
@@ -207,7 +208,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
             ),
             const SizedBox(width: 4),
             Text(
-              title,
+              label,
               style: TextStyle(color: Colors.grey[500], fontSize: 12, fontWeight: FontWeight.w500),
             ),
           ],

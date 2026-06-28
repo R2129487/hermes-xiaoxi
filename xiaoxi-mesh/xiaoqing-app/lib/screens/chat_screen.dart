@@ -99,8 +99,9 @@ class _ConversationListState extends State<ConversationList> {
   List<Agent> get _offline =>
       _agents.where((a) => a.type == 'agent' && !a.pinned && !a.online).toList();
 
-  Widget _buildSectionHeader(String title, {bool top = false}) {
+  Widget _buildSectionHeader(String title, {bool top = false, int? count}) {
     final isCollapsed = _collapsed.contains(title);
+    final label = count != null ? '$title ($count)' : title;
     return Container(
       padding: EdgeInsets.fromLTRB(16, top ? 4 : 16, 16, 4),
       color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1A1A1A) : const Color(0xFFF7F7F7),
@@ -116,7 +117,7 @@ class _ConversationListState extends State<ConversationList> {
             ),
             const SizedBox(width: 4),
             Text(
-              title,
+              label,
               style: TextStyle(color: Colors.grey[500], fontSize: 12, fontWeight: FontWeight.w500),
             ),
           ],
@@ -263,26 +264,26 @@ class _ConversationListState extends State<ConversationList> {
                     children: [
                       // ─── 调度员 ───
                       if (_dispatchers.isNotEmpty) ...[
-                        _buildSectionHeader('调度员', top: true),
+                        _buildSectionHeader('调度员', top: true, count: _dispatchers.length),
                         if (!_collapsed.contains('调度员'))
                           ..._dispatchers.map((a) => _buildChatTile(a)),
                       ],
                       // ─── 用户 ───
                       if (_users.isNotEmpty) ...[
-                        _buildSectionHeader('用户 (${_users.length})'),
-                        if (!_collapsed.contains('用户 (${_users.length})'))
+                        _buildSectionHeader('用户', count: _users.length),
+                        if (!_collapsed.contains('用户'))
                           ..._users.map((a) => _buildChatTile(a)),
                       ],
                       // ─── 在线 / 置顶 ───
                       if (_pinnedOnline.isNotEmpty) ...[
-                        _buildSectionHeader('智能体 (${_pinnedOnline.length})'),
-                        if (!_collapsed.contains('智能体 (${_pinnedOnline.length})'))
+                        _buildSectionHeader('智能体', count: _pinnedOnline.length),
+                        if (!_collapsed.contains('智能体'))
                           ..._pinnedOnline.map((a) => _buildChatTile(a)),
                       ],
                       // ─── 离线 ───
                       if (_offline.isNotEmpty) ...[
-                        _buildSectionHeader('离线 (${_offline.length})'),
-                        if (!_collapsed.contains('离线 (${_offline.length})'))
+                        _buildSectionHeader('离线', count: _offline.length),
+                        if (!_collapsed.contains('离线'))
                           ..._offline.map((a) => _buildChatTile(a)),
                       ],
                       const SizedBox(height: 20),

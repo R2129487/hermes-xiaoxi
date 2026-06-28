@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../main.dart' show api;
 import 'chat_detail.dart';
+import '../services/app_config_service.dart';
+import '../models/app_config.dart';
+import '../models/agent.dart';
 
 /// 办公组页面 — 微信群风格的工作组列表
 class WorkgroupScreen extends StatefulWidget {
@@ -10,64 +13,60 @@ class WorkgroupScreen extends StatefulWidget {
   State<WorkgroupScreen> createState() => _WorkgroupScreenState();
 }
 
+class _WorkGroupViewModel {
+  final String id;
+  final String name;
+  final String type;
+  final List<Agent> agents;
+
+  const _WorkGroupViewModel({required this.id, required this.name, required this.type, required this.agents});
+
+  String get displayName => agents.isNotEmpty ? (agents.first.nickname.isNotEmpty ? agents.first.nickname : agents.first.displayName) : '?';
+  String get lastMessage => '等待新消息';
+  String get timeLabel => '';
+  int get unread => 0;
+}
+
 class _WorkgroupScreenState extends State<WorkgroupScreen> {
   bool _loading = false;
   final TextEditingController _searchCtrl = TextEditingController();
   final Set<String> _collapsed = {};
-
-  // ─── 模拟数据（后续接 API） ───
-  final List<Map<String, dynamic>> _groups = [
-    {
-      'id': 'g_dev',
-      'name': '开发组',
-      'type': 'permanent',  // permanent=常驻, task=任务, emergency=紧急
-      'members': ['青', '蓝', '白'],
-      'memberColors': [0xFF6366F1, 0xFF8B5CF6, 0xFF34D399],
-      'lastMsg': '小蓝：服务器部署完成',
-      'time': '14:32',
-      'unread': 2,
-    },
-    {
-      'id': 'g_ops',
-      'name': '运维值班',
-      'type': 'permanent',
-      'members': ['蓝', '黑'],
-      'memberColors': [0xFF8B5CF6, 0xFF64748B],
-      'lastMsg': '小黑：巡检报告已提交',
-      'time': '13:15',
-      'unread': 0,
-    },
-    {
-      'id': 'g_task_v013',
-      'name': 'v0.1.3 发版任务',
-      'type': 'task',
-      'members': ['青', '蓝'],
-      'memberColors': [0xFF6366F1, 0xFF8B5CF6],
-      'lastMsg': '小青：APK 已构建完成',
-      'time': '16:53',
-      'unread': 1,
-    },
-  ];
+  List<_WorkGroupViewModel> _groups = [];
+  List<Agent> _agents = [];
 
   @override
   void initState() {
     super.initState();
     _searchCtrl.addListener(() => setState(() {}));
+    _loadFromConfig();
+    AppConfigService.instance.configNotifier.addListener(_loadFromConfig);
   }
 
   @override
   void dispose() {
+    AppConfigService.instance.configNotifier.removeListener(_loadFromConfig);
     _searchCtrl.dispose();
     super.dispose();
   }
 
+  Future<void> _loadFromConfig() async {
+    setState(() => _loading = true);
+    _agents = await api.getAgents();
+    final groups = AppConfigService.instance.config?.groups ?? [];
+    _groups = groups.map((g) {
+      final members = AppConfigService.instance.resolveGroupMembersFuzzy(g, _agents);
+      return _WorkGroupViewModel(id: g.id, name: g.name, type: g.type, agents: members);
+    }).toList();
+    if (mounted) setState(() => _loading = false);
+  }
+
   // ─── 分组 ───
-  List<Map<String, dynamic>> get _permanent =>
-      _groups.where((g) => g['type'] == 'permanent').toList();
-  List<Map<String, dynamic>> get _task =>
-      _groups.where((g) => g['type'] == 'task').toList();
-  List<Map<String, dynamic>> get _emergency =>
-      _groups.where((g) => g['type'] == 'emergency').toList();
+  List<_WorkGroupViewModel> get _permanent =>
+      _groups.where((g) => g.type == 'permanent').toList();
+  List<_WorkGroupViewModel> get _task =>
+      _groups.where((g) => g.type == 'task').toList();
+  List<_WorkGroupViewModel> get _emergency =>
+      _groups.where((g) => g.type == 'emergency').toList();
 
   void _toggleSection(String key) {
     setState(() {
@@ -118,15 +117,14 @@ class _WorkgroupScreenState extends State<WorkgroupScreen> {
     );
   }
 
-  Widget _buildGroupTile(Map<String, dynamic> group) {
-    final members = group['members'] as List<String>;
-    final colors = group['memberColors'] as List<int>;
-    final unread = group['unread'] as int;
+  Widget _buildGroupTile(_WorkGroupViewModel group) {
+    final agents = group.agents;
+    final unread = group.unread;
 
     // 组类型图标
     IconData typeIcon;
     Color typeColor;
-    switch (group['type']) {
+    switch (group.type) {
       case 'task':
         typeIcon = Icons.assignment_outlined;
         typeColor = const Color(0xFFF59E0B);
@@ -142,9 +140,23 @@ class _WorkgroupScreenState extends State<WorkgroupScreen> {
 
     return InkWell(
       onTap: () {
-        // TODO: 进入群聊
+        if (agents.isNotEmpty) {
+          final first = agents.first;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ChatDetail(
+                agentId: first.agentId,
+                agentName: first.showName,
+                agentColor: Color(first.avatarColor),
+                agentAvatar: first.avatar,
+              ),
+            ),
+          );
+          return;
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('群聊功能开发中：${group['name']}')),
+          SnackBar(content: Text('群聊功能开发中：${group.name}')),
         );
       },
       child: Container(
@@ -161,9 +173,9 @@ class _WorkgroupScreenState extends State<WorkgroupScreen> {
                   // 主头像
                   CircleAvatar(
                     radius: 22,
-                    backgroundColor: Color(colors.isNotEmpty ? colors[0] : 0xFF6366F1),
+                    backgroundColor: Color(agents.isNotEmpty ? agents.first.avatarColor : 0xFF6366F1),
                     child: Text(
-                      members.isNotEmpty ? members[0] : '?',
+                      group.displayName,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
@@ -172,15 +184,15 @@ class _WorkgroupScreenState extends State<WorkgroupScreen> {
                     ),
                   ),
                   // 副头像（右下角小圆）
-                  if (members.length > 1)
+                  if (agents.length > 1)
                     Positioned(
                       right: 0,
                       bottom: 0,
                       child: CircleAvatar(
                         radius: 10,
-                        backgroundColor: Color(colors.length > 1 ? colors[1] : 0xFF8B5CF6),
+                        backgroundColor: Color(agents[1].avatarColor),
                         child: Text(
-                          members[1],
+                          agents[1].displayName.isNotEmpty ? agents[1].displayName[0] : '?',
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
@@ -220,7 +232,7 @@ class _WorkgroupScreenState extends State<WorkgroupScreen> {
                           children: [
                             Flexible(
                               child: Text(
-                                group['name'],
+                                group.name,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w500,
                                   fontSize: 16,
@@ -231,14 +243,14 @@ class _WorkgroupScreenState extends State<WorkgroupScreen> {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              '${members.length}人',
+                              '${group.agents.length}人',
                               style: TextStyle(color: Colors.grey[400], fontSize: 12),
                             ),
                           ],
                         ),
                       ),
                       Text(
-                        group['time'] ?? '',
+                        group.timeLabel,
                         style: TextStyle(
                           color: unread > 0
                               ? const Color(0xFF07C160)
@@ -253,7 +265,7 @@ class _WorkgroupScreenState extends State<WorkgroupScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          group['lastMsg'] ?? '',
+                          group.lastMessage,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -321,7 +333,7 @@ class _WorkgroupScreenState extends State<WorkgroupScreen> {
           child: _loading
               ? const Center(child: CircularProgressIndicator())
               : RefreshIndicator(
-                  onRefresh: () async {},
+                  onRefresh: _loadFromConfig,
                   child: ListView(
                     padding: EdgeInsets.zero,
                     children: [
@@ -358,7 +370,7 @@ class _WorkgroupScreenState extends State<WorkgroupScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '创建一个工作组开始协作',
+                                  '在服务端管理页面创建工作流组后自动同步',
                                   style: TextStyle(color: Colors.grey[400], fontSize: 12),
                                 ),
                               ],
@@ -372,9 +384,8 @@ class _WorkgroupScreenState extends State<WorkgroupScreen> {
                           width: double.infinity,
                           child: OutlinedButton.icon(
                             onPressed: () {
-                              // TODO: 新建办公组
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('创建办公组功能开发中')),
+                                const SnackBar(content: Text('创建办公组请前往服务端管理页面')),
                               );
                             },
                             icon: const Icon(Icons.add, size: 18),

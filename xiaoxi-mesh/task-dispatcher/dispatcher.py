@@ -26,6 +26,7 @@ from models import Agent, TaskLog, User
 from web_ui import get_web_html
 from web_chat import get_chat_html
 from web_config import get_config_html
+from web_app_config import get_app_config_html, load_app_config, save_app_config
 from web_memory import get_memory_html
 from web_agents import get_agents_html
 
@@ -707,6 +708,26 @@ async def chat_page():
 async def config_page():
     """返回调度员配置界面"""
     return get_config_html()
+
+# APP 配置管理页面
+@app.get("/app-config", response_class=HTMLResponse)
+async def app_config_page():
+    return get_app_config_html()
+
+# APP 配置 API（APP启动时拉取）
+@app.get("/api/app-config")
+async def get_app_config():
+    """返回APP配置，供客户端同步"""
+    return load_app_config()
+
+@app.post("/api/app-config")
+async def update_app_config(request: dict):
+    """更新APP配置"""
+    try:
+        save_app_config(request)
+        return {"success": True, "message": "配置已保存"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 # 调度员记忆管理页面

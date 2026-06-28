@@ -4,3 +4,7 @@ xiaoqing-app/assets/models/
 xiaoqing-app/android/build/
 xiaoqing-app/android_bak/
 *.onnx
+
+# 运行时数据
+task-dispatcher/data/
+task-dispatcher/messenger.db

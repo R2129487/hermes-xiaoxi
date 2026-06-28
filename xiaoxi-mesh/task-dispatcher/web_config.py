@@ -52,6 +52,8 @@ h1{font-size:20px;margin-bottom:4px}
     <span style="margin:0 8px;color:#ddd">|</span>
     <a href="/agents">🤖 智能体</a>
     <span style="margin:0 8px;color:#ddd">|</span>
+    <a href="/app-config">📱 APP配置</a>
+    <span style="margin:0 8px;color:#ddd">|</span>
     <a href="/admin" target="_blank">📊 调度面板</a>
   </div>
   <h1>⚙️ 调度员配置</h1>

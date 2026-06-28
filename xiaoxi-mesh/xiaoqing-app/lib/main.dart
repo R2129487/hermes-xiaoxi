@@ -8,6 +8,10 @@ import 'screens/chat_detail.dart';
 import 'models/agent.dart';
 import 'services/dispatcher_api.dart';
 import 'services/notification_service.dart';
+import 'services/app_config_service.dart';
+
+/// APP全局标题（跟随服务端配置）
+final ValueNotifier<String> appTitleNotifier = ValueNotifier('小希');
 
 /// 全局主题切换
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
@@ -29,6 +33,11 @@ Future<void> main() async {
   await api.init();
   // 初始化通知
   await NotificationService().init();
+  // 初始化APP配置（拉服务端最新配置）
+  await AppConfigService.instance.init(api.baseUrl);
+  if (AppConfigService.instance.config != null) {
+    appTitleNotifier.value = AppConfigService.instance.config!.title;
+  }
   runApp(const XiaoQingApp());
 }
 
@@ -107,7 +116,7 @@ class _XiaoQingAppState extends State<XiaoQingApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '小希',
+      title: appTitleNotifier.value,
       debugShowCheckedModeBanner: false,
       navigatorKey: _navigatorKey,
       themeMode: themeNotifier.value,
