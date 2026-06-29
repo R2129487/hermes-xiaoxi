@@ -201,18 +201,7 @@ class DispatcherApi {
       final data = json.decode(r.body);
       if (data['code'] != 0) return [];
       final list = data['data'] as List;
-      return list.map((a) => Agent(
-        agentId: a['id'],
-        displayName: a['name'],
-        nickname: a['nickname'] ?? '',
-        type: a['type'] ?? 'agent',
-        avatar: a['avatar'] ?? (a['name']?.toString().isNotEmpty == true ? a['name'][0] : '?'),
-        avatarColor: a['avatar_color'] ?? 0xFF888888,
-        online: a['status'] != 'offline',
-        status: a['status'] ?? 'offline',
-        pinned: a['pinned'] ?? false,
-        capabilities: a['capabilities'] ?? '',
-      )).toList();
+      return list.map((a) => Agent.fromJson(a)).toList();
     } catch (_) {
       return [];
     }

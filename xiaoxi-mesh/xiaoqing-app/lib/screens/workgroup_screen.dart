@@ -150,6 +150,7 @@ class _WorkgroupScreenState extends State<WorkgroupScreen> {
                 agentName: first.showName,
                 agentColor: Color(first.avatarColor),
                 agentAvatar: first.avatar,
+                sessionId: 'session_agent_${first.agentId}',
               ),
             ),
           );
