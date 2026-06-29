@@ -171,10 +171,11 @@ function renderAgentList() {
   });
 
   const groupLabels = {
-    system: '调度',
-    member: '成员',
+    system: '调度员',
+    member: '智能体',
+    user: '用户',
   };
-  const groupOrder = ['system', 'member'];
+  const groupOrder = ['system', 'member', 'user'];
 
   // 折叠状态（仅成员组可折叠）
   const collapsedKey = 'chat_agent_groups_collapsed';

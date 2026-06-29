@@ -577,7 +577,7 @@ async def list_chat_agents():
                 "capabilities": agent.capabilities,
                 "description": configured_prompts.get(agent.id, "")[:50] if configured_prompts.get(agent.id) else "",
                 "has_prompt": is_configured,
-                "group": "member",
+                "group": "system" if agent.type == "dispatcher" else ("user" if agent.type == "user" else "member"),
             })
 
         return {"code": 0, "data": result}
