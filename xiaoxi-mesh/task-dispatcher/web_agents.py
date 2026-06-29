@@ -212,33 +212,57 @@ function renderAgents() {
     el.innerHTML = '<div class="empty">暂无智能体，点击右上角「新增」注册</div>';
     return;
   }
-  el.innerHTML = `<table>
-    <tr>
-      <th>头像</th><th>名称</th><th>ID</th><th>能力</th>
-      <th>连接方式</th><th>连接地址</th><th>状态</th><th>操作</th>
-    </tr>
-    ${agents.map(a => {
-      const style = AGENT_STYLES[a.id] || {};
-      const avatar = style.avatar || (a.name ? a.name[0] : '?');
-      const color = style.color || '#95a5a6';
-      const statusClass = 'status-' + (a.status || 'offline');
-      const statusLabel = {online:'在线', offline:'离线', busy:'工作中'}[a.status] || a.status;
-      const connType = a.connection_type || 'local';
-      return `<tr>
-        <td><div style="width:32px;height:32px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px">${avatar}</div></td>
-        <td><strong>${escHtml(a.name)}</strong></td>
-        <td style="color:#999;font-size:11px">${escHtml(a.id)}</td>
-        <td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(a.capabilities || '')}</td>
-        <td>${connTag(connType)}</td>
-        <td style="font-size:11px;color:#666;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(connInfo(a))}</td>
-        <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
-        <td style="white-space:nowrap">
-          <button class="btn btn-sm" onclick="editAgent('${a.id}')">✏️</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteAgent('${a.id}')">🗑</button>
-        </td>
-      </tr>`;
-    }).join('')}
-  </table>`;
+
+  // 按类型分组
+  const groups = {
+    dispatcher: agents.filter(a => a.type === 'dispatcher'),
+    agent: agents.filter(a => a.type === 'agent'),
+    user: agents.filter(a => a.type === 'user'),
+  };
+  const groupLabels = {dispatcher:'调度员', agent:'智能体', user:'用户'};
+  const groupIcons = {dispatcher:'🎯', agent:'🤖', user:'👤'};
+
+  let html = '';
+  for (const [type, list] of Object.entries(groups)) {
+    if (!list.length) continue;
+    const label = groupLabels[type] || type;
+    const icon = groupIcons[type] || '';
+    html += `<div style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #eee">
+        <span style="font-size:16px">${icon}</span>
+        <span style="font-size:14px;font-weight:600;color:#333">${label}</span>
+        <span style="font-size:12px;color:#999">(${list.length})</span>
+      </div>
+      <table>
+        <tr>
+          <th>头像</th><th>名称</th><th>ID</th><th>能力</th>
+          <th>连接方式</th><th>连接地址</th><th>状态</th><th>操作</th>
+        </tr>
+        ${list.map(a => {
+          const style = AGENT_STYLES[a.id] || {};
+          const avatar = style.avatar || (a.name ? a.name[0] : '?');
+          const color = style.color || '#95a5a6';
+          const statusClass = 'status-' + (a.status || 'offline');
+          const statusLabel = {online:'在线', offline:'离线', busy:'工作中'}[a.status] || a.status;
+          const connType = a.connection_type || 'local';
+          return `<tr>
+            <td><div style="width:32px;height:32px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px">${avatar}</div></td>
+            <td><strong>${escHtml(a.name)}</strong></td>
+            <td style="color:#999;font-size:11px">${escHtml(a.id)}</td>
+            <td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(a.capabilities || '')}</td>
+            <td>${connTag(connType)}</td>
+            <td style="font-size:11px;color:#666;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(connInfo(a))}</td>
+            <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+            <td style="white-space:nowrap">
+              <button class="btn btn-sm" onclick="editAgent('${a.id}')">✏️</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteAgent('${a.id}')">🗑</button>
+            </td>
+          </tr>`;
+        }).join('')}
+      </table>
+    </div>`;
+  }
+  el.innerHTML = html;
 }
 
 function showAddModal() {

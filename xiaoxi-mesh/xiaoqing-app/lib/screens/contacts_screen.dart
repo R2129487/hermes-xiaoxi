@@ -18,6 +18,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   bool _loading = true;
   final TextEditingController _searchCtrl = TextEditingController();
   final Set<String> _collapsed = {};  // 折叠的分栏 key
+  final Set<String> _expandedAgents = {};  // 展开详情的agent ID
 
   @override
   void initState() {
@@ -219,7 +220,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   Widget _buildAgentTile(Agent a) {
     final uid = api.currentUser?.id ?? '';
-    // 用户间私聊用双向session ID，确保双方看到同一会话
     final sessionId = a.type == 'user'
         ? (uid.compareTo(a.agentId) < 0
             ? 'session_user_${uid}_${a.agentId}'
@@ -228,15 +228,16 @@ class _ContactsScreenState extends State<ContactsScreen> {
     final name = a.showName;
     final color = Color(a.avatarColor);
     final avatarChar = a.avatar.isNotEmpty ? a.avatar : _agentAvatar(a.agentId);
+    final isExpanded = _expandedAgents.contains(a.agentId);
+    final hasDetails = a.capabilities.isNotEmpty || a.connectionInfo.isNotEmpty;
 
-    // 能力标签（最多显示3个）
+    // 能力标签
     final caps = a.capabilities.split(',').where((c) => c.trim().isNotEmpty).toList();
     final displayCaps = caps.take(3).join(', ');
     final hasMoreCaps = caps.length > 3;
 
     return InkWell(
       onTap: () async {
-        // 进入聊天
         final changed = await Navigator.push(context, MaterialPageRoute(
           builder: (_) => ChatDetail(
             agentId: a.agentId,
@@ -253,126 +254,117 @@ class _ContactsScreenState extends State<ContactsScreen> {
       child: Container(
         color: Theme.of(context).cardColor,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
+        child: Column(
           children: [
-            Stack(
+            Row(
               children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: color,
-                  child: Text(
-                    avatarChar,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 18),
+                Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: color,
+                      child: Text(avatarChar,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 18)),
+                    ),
+                    if (a.online)
+                      Positioned(right: 0, bottom: 0,
+                        child: Container(width: 10, height: 10,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF07C160),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2)),
+                        )),
+                  ],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(name,
+                              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16, color: Color(0xFF191919)),
+                              overflow: TextOverflow.ellipsis),
+                          ),
+                          if (a.nickname.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Text('@${a.displayName}',
+                              style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+                          ],
+                          const Spacer(),
+                          Text(_statusLabel(a.status),
+                            style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                if (a.online)
-                  Positioned(
-                    right: 0, bottom: 0,
-                    child: Container(
-                      width: 10, height: 10,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF07C160),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                    ),
+                // 展开/折叠按钮
+                if (hasDetails)
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        if (isExpanded) {
+                          _expandedAgents.remove(a.agentId);
+                        } else {
+                          _expandedAgents.add(a.agentId);
+                        }
+                      });
+                    },
+                    child: Icon(
+                      isExpanded ? Icons.expand_less : Icons.expand_more,
+                      color: Colors.grey[400], size: 20),
                   ),
               ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 第一行：名称 + 备注
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          name,
-                          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16, color: Color(0xFF191919)),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+            // 展开的详情区域
+            if (isExpanded && hasDetails)
+              Padding(
+                padding: const EdgeInsets.only(top: 8, left: 60),
+                child: Row(
+                  children: [
+                    if (displayCaps.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F4FD),
+                          borderRadius: BorderRadius.circular(3)),
+                        child: Text(displayCaps + (hasMoreCaps ? '...' : ''),
+                          style: const TextStyle(color: Color(0xFF2980B9), fontSize: 10),
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
-                      if (a.nickname.isNotEmpty) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          '@${a.displayName}',
-                          style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                        ),
-                      ],
+                      const SizedBox(width: 6),
                     ],
-                  ),
-                  const SizedBox(height: 2),
-                  // 第二行：能力标签 + 连接方式
-                  Row(
-                    children: [
-                      // 能力标签
-                      if (displayCaps.isNotEmpty) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE8F4FD),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          child: Text(
-                            displayCaps + (hasMoreCaps ? '...' : ''),
-                            style: const TextStyle(color: Color(0xFF2980B9), fontSize: 10),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                      ],
-                      // 连接方式标签
-                      if (a.connectionType.isNotEmpty && a.type != 'user') ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
+                    if (a.connectionType.isNotEmpty && a.type != 'user')
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: a.connectionType == 'local'
+                              ? const Color(0xFFE8F4FD)
+                              : a.connectionType == 'ssh'
+                                  ? const Color(0xFFFEF3E2)
+                                  : const Color(0xFFE8F8F5),
+                          borderRadius: BorderRadius.circular(3)),
+                        child: Text(a.connectionTypeLabel,
+                          style: TextStyle(
                             color: a.connectionType == 'local'
-                                ? const Color(0xFFE8F4FD)
+                                ? const Color(0xFF2980B9)
                                 : a.connectionType == 'ssh'
-                                    ? const Color(0xFFFEF3E2)
-                                    : const Color(0xFFE8F8F5),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          child: Text(
-                            a.connectionTypeLabel,
-                            style: TextStyle(
-                              color: a.connectionType == 'local'
-                                  ? const Color(0xFF2980B9)
-                                  : a.connectionType == 'ssh'
-                                      ? const Color(0xFFD35400)
-                                      : const Color(0xFF1ABC9C),
-                              fontSize: 10,
-                            ),
-                          ),
-                        ),
-                      ],
-                      const Spacer(),
-                      // 状态文本
-                      Text(
-                        _statusLabel(a.status),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                                    ? const Color(0xFFD35400)
+                                    : const Color(0xFF1ABC9C),
+                            fontSize: 10)),
                       ),
+                    if (a.connectionInfo.isNotEmpty && a.connectionType == 'ssh') ...[
+                      const SizedBox(width: 8),
+                      Text(a.connectionInfo,
+                        style: TextStyle(color: Colors.grey[400], fontSize: 10),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
                     ],
-                  ),
-                  // 第三行：连接地址（仅SSH显示）
-                  if (a.connectionInfo.isNotEmpty && a.connectionType == 'ssh') ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      a.connectionInfo,
-                      style: TextStyle(color: Colors.grey[400], fontSize: 10),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
                   ],
-                ],
+                ),
               ),
-            ),
-            Icon(Icons.chevron_right, color: Colors.grey[300], size: 20),
           ],
         ),
       ),
