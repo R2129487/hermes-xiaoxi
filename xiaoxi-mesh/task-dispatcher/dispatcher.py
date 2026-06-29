@@ -380,7 +380,7 @@ async def _mesh_sync_loop():
                 now = __import__("models").now_str()
 
                 for ma in mesh_agents:
-                    mesh_id = ma.get("id", "")
+                    mesh_id = ma.get("agent_id", "") or ma.get("id", "")
                     dispatcher_id = _MESH_TO_DISPATCHER.get(mesh_id)
                     if not dispatcher_id:
                         continue
@@ -583,7 +583,7 @@ async def lifespan(app: FastAPI):
 
 
 async def _register_default_agents():
-    """预注册默认智能体（小青/小蓝/小白）"""
+    """预注册默认智能体 — 本地agent默认online，远程agent默认offline（由mesh同步更新）"""
     default_agents = [
         Agent(
             id="dispatcher",
@@ -592,7 +592,7 @@ async def _register_default_agents():
             type="dispatcher",
             avatar_color=0xFF3498db,
             capabilities="任务调度,任务管理,任务跟踪,任务分配",
-            status="online",
+            status="online",  # 本地，始终在线
             max_load=config["agents"]["max_load"],
             current_load=0,
             connection_type="local",
@@ -601,7 +601,7 @@ async def _register_default_agents():
             id="xiao-qing",
             name="小青",
             capabilities="chat,code,analyze,write,search",
-            status="online",
+            status="online",  # 本地，始终在线
             max_load=config["agents"]["max_load"],
             current_load=0,
             connection_type="local",
@@ -612,7 +612,7 @@ async def _register_default_agents():
             id="xiao-lan",
             name="小蓝",
             capabilities="chat,code,test,deploy,translate",
-            status="online",
+            status="offline",  # 远程，由mesh同步
             max_load=config["agents"]["max_load"],
             current_load=0,
             connection_type="ssh",
@@ -623,7 +623,7 @@ async def _register_default_agents():
             id="xiao-bai",
             name="小白",
             capabilities="chat,analyze,search,image,write",
-            status="online",
+            status="offline",  # 远程，由mesh同步
             max_load=config["agents"]["max_load"],
             current_load=0,
             connection_type="ssh",
@@ -634,7 +634,7 @@ async def _register_default_agents():
             id="xiao-hei",
             name="小黑",
             capabilities="knowledge,doc,image,file",
-            status="online",
+            status="offline",  # 远程，由mesh同步
             max_load=config["agents"]["max_load"],
             current_load=0,
             connection_type="ssh",
