@@ -374,9 +374,17 @@ async def _process_message(task_id: str, message: str, session_id: str, agent_id
             client = mesh_client
             if client:
                 target_id = AGENT_ID_MAP.get(agent_id, agent_id)
-                # 传递task_id让agent可以回报状态
-                reply = await client.send_to_agent(target_id, message, timeout=60,
-                                                   metadata={"task_id": task_id})
+                # 传递task_id+session_id+reply_url让agent可以回报状态和回复
+                dispatcher_host = config.get("server", {}).get("host", "0.0.0.0")
+                dispatcher_port = config.get("server", {}).get("port", 8767)
+                # agent从外部访问需要用真实IP，127.0.0.1只能本机用
+                reply_url = f"http://192.168.1.6:{dispatcher_port}/api/chat/reply"
+                reply = await client.send_to_agent(target_id, message, timeout=120,
+                                                   metadata={
+                                                       "task_id": task_id,
+                                                       "session_id": session_id,
+                                                       "reply_url": reply_url,
+                                                   })
                 if reply:
                     await storage.update_message_task(task_id, "completed", "已回复", reply)
                     await _save_message(session_id, "assistant", reply, user_id=user.id)
