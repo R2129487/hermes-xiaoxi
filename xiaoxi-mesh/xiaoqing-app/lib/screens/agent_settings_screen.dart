@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../main.dart' show api;
 import '../models/agent.dart';
+import '../services/message_cache.dart';
 
 /// 智能体设置页 — 自定义备注名 + 头像颜色
 class AgentSettingsScreen extends StatefulWidget {
@@ -49,6 +50,33 @@ class _AgentSettingsScreenState extends State<AgentSettingsScreen> {
     _nicknameCtrl.dispose();
     _capCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _clearHistory() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('清除对话历史'),
+        content: Text('确定要清除与 ${widget.agent.showName} 的所有对话记录吗？此操作不可恢复。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('清除', style: TextStyle(color: Colors.red[400])),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    final sessionId = 'session_agent_${widget.agent.agentId}';
+    await MessageCache.clearSession(sessionId);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ 对话历史已清除'), duration: Duration(seconds: 2)),
+      );
+      Navigator.pop(context, true);  // 返回并刷新
+    }
   }
 
   Future<void> _save() async {
@@ -275,6 +303,29 @@ class _AgentSettingsScreenState extends State<AgentSettingsScreen> {
           ),
 
           const SizedBox(height: 32),
+
+          // ── 清除对话历史 ──
+          GestureDetector(
+            onTap: _clearHistory,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.delete_outline, size: 18, color: Colors.red[400]),
+                  const SizedBox(width: 6),
+                  Text('清除对话历史', style: TextStyle(fontSize: 15, color: Colors.red[400])),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
 
             ],
           ),

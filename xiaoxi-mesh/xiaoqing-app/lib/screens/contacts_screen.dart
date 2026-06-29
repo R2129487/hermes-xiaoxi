@@ -335,6 +335,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
               ),
             ),
             Icon(Icons.chevron_right, color: Colors.grey[300], size: 20),
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () => _openSettings(a),
+              child: Icon(Icons.settings, color: Colors.grey[400], size: 18),
+            ),
           ],
         ),
       ),
