@@ -229,6 +229,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
     final color = Color(a.avatarColor);
     final avatarChar = a.avatar.isNotEmpty ? a.avatar : _agentAvatar(a.agentId);
 
+    // 能力标签（最多显示3个）
+    final caps = a.capabilities.split(',').where((c) => c.trim().isNotEmpty).toList();
+    final displayCaps = caps.take(3).join(', ');
+    final hasMoreCaps = caps.length > 3;
+
     return InkWell(
       onTap: () async {
         // 进入聊天
@@ -279,6 +284,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 第一行：名称 + 备注
                   Row(
                     children: [
                       Flexible(
@@ -298,38 +304,71 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     ],
                   ),
                   const SizedBox(height: 2),
+                  // 第二行：能力标签 + 连接方式
                   Row(
                     children: [
-                      if (a.nickname.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                            child: Text(
-                              _statusLabel(a.status),
-                              style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                      // 能力标签
+                      if (displayCaps.isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F4FD),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Text(
+                            displayCaps + (hasMoreCaps ? '...' : ''),
+                            style: const TextStyle(color: Color(0xFF2980B9), fontSize: 10),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      // 连接方式标签
+                      if (a.connectionType.isNotEmpty && a.type != 'user') ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: a.connectionType == 'local'
+                                ? const Color(0xFFE8F4FD)
+                                : a.connectionType == 'ssh'
+                                    ? const Color(0xFFFEF3E2)
+                                    : const Color(0xFFE8F8F5),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Text(
+                            a.connectionTypeLabel,
+                            style: TextStyle(
+                              color: a.connectionType == 'local'
+                                  ? const Color(0xFF2980B9)
+                                  : a.connectionType == 'ssh'
+                                      ? const Color(0xFFD35400)
+                                      : const Color(0xFF1ABC9C),
+                              fontSize: 10,
                             ),
                           ),
-                        )
-                      else
-                        Text(
-                          _statusLabel(a.status),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Colors.grey[500], fontSize: 12),
                         ),
+                      ],
                       const Spacer(),
-                      // 设置按钮
-                      GestureDetector(
-                        onTap: () => _openSettings(a),
-                        child: Icon(Icons.settings_outlined, color: Colors.grey[300], size: 18),
+                      // 状态文本
+                      Text(
+                        _statusLabel(a.status),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.grey[500], fontSize: 12),
                       ),
                     ],
                   ),
+                  // 第三行：连接地址（仅SSH显示）
+                  if (a.connectionInfo.isNotEmpty && a.connectionType == 'ssh') ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      a.connectionInfo,
+                      style: TextStyle(color: Colors.grey[400], fontSize: 10),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ],
               ),
             ),
