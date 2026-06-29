@@ -72,6 +72,13 @@ AGENT_CONFIGS = {
         "specialties": ["系统管理", "数据分析", "API集成", "任务调度", "SSH运维"],
         "description": "阿里云服务器管理员，7x24在线，负责协调调度、SSH运维",
     },
+    "xiaohei": {
+        "name": "小黑",
+        "server": SERVER_WS,
+        "capabilities": ["knowledge", "doc", "image", "file"],
+        "specialties": ["知识库管理", "文档管理", "图片处理", "资料管理"],
+        "description": "小新笔记本AI助手，负责希希手作资料管理、知识库维护、商品图片和文档管理",
+    },
 }
 
 
@@ -206,6 +213,27 @@ class AgentRunner:
         if self.client:
             await self.client.disconnect()
         log.info(f"👋 {self.name} 已断开连接")
+
+    # ── 状态回报 ──
+
+    def _get_dispatcher_url(self) -> str:
+        """获取mesh服务器HTTP地址（所有节点都能访问）"""
+        return self.server_http
+
+    async def _report_status(self, task_id: str, status: str, detail: str = ""):
+        """向mesh服务器回报处理状态"""
+        if not task_id:
+            return
+        try:
+            async with httpx.AsyncClient(timeout=5) as http:
+                await http.post(
+                    f"{self._get_dispatcher_url()}/api/agent/status",
+                    json={"task_id": task_id, "agent_id": self.agent_id,
+                          "status": status, "detail": detail},
+                )
+                log.info(f"📤 状态回报: {task_id} -> {status} ({detail})")
+        except Exception as e:
+            log.warning(f"状态回报失败: {e}")
 
     async def _handle_message(self, msg: dict):
         """处理收到的消息"""
@@ -556,13 +584,20 @@ class AgentRunner:
         """处理普通文本消息 — 也走决策流程，判断该自己干还是委派"""
         from_id = msg.get("from_id", "")
         content = msg.get("content", "")
+        metadata = msg.get("metadata", {})
+        task_id = metadata.get("task_id", "")
         log.info(f"💬 [{from_id}]: {content}")
+        log.info(f"   metadata: {metadata} task_id: {task_id}")
 
         # 跳过空消息和心跳
         if not content or content.strip() == "":
             return
 
+        # 回报：已收到
+        await self._report_status(task_id, "agent_received", f"{self.name}已收到")
+
         # 走统一决策流程
+        await self._report_status(task_id, "agent_processing", f"{self.name}处理中")
         decision = await self._make_decision(content, from_agent=self.agent_id)
         action = decision.get("decision", "SELF").upper()
         target = decision.get("target_agent", "")

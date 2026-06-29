@@ -555,11 +555,20 @@ class Storage:
         await self._conn.commit()
         return cursor.rowcount > 0
 
+    async def update_agent_status(self, task_id: str, agent_status: str, detail: str = "") -> bool:
+        """更新agent处理状态（独立于dispatcher状态）"""
+        await self._ensure_conn()
+        now = now_str()
+        sql = "UPDATE message_tasks SET agent_status = ?, updated_at = ? WHERE id = ?"
+        cursor = await self._conn.execute(sql, (agent_status, now, task_id))
+        await self._conn.commit()
+        return cursor.rowcount > 0
+
     async def get_message_task(self, task_id: str) -> dict | None:
         """查询消息任务状态"""
         await self._ensure_conn()
         cursor = await self._conn.execute(
-            "SELECT id, session_id, status, detail, reply, created_at, updated_at FROM message_tasks WHERE id = ?",
+            "SELECT id, session_id, status, detail, reply, agent_status, created_at, updated_at FROM message_tasks WHERE id = ?",
             (task_id,))
         row = await cursor.fetchone()
         if row:

@@ -374,8 +374,9 @@ async def _process_message(task_id: str, message: str, session_id: str, agent_id
             client = mesh_client
             if client:
                 target_id = AGENT_ID_MAP.get(agent_id, agent_id)
-                # 直接转发最新消息，不带历史上下文
-                reply = await client.send_to_agent(target_id, message, timeout=60)
+                # 传递task_id让agent可以回报状态
+                reply = await client.send_to_agent(target_id, message, timeout=60,
+                                                   metadata={"task_id": task_id})
                 if reply:
                     await storage.update_message_task(task_id, "completed", "已回复", reply)
                     await _save_message(session_id, "assistant", reply, user_id=user.id)
@@ -461,7 +462,11 @@ async def update_message_status(request: dict):
     detail = request.get("detail", "")
     if not task_id or not status:
         return {"code": 1, "message": "缺少 task_id 或 status"}
-    ok = await storage.update_message_task(task_id, status, detail)
+    # agent状态（agent_received/agent_processing/agent_completed）单独存
+    if status.startswith("agent_"):
+        ok = await storage.update_agent_status(task_id, status, detail)
+    else:
+        ok = await storage.update_message_task(task_id, status, detail)
     return {"code": 0 if ok else 1, "data": {"task_id": task_id, "status": status}}
 
 

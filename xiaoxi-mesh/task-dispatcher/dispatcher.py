@@ -49,7 +49,8 @@ class MeshClient:
         self._receive_task = None
         self._pending_replies: dict[str, asyncio.Future] = {}
 
-    async def send_to_agent(self, agent_id: str, content: str, timeout: float = 60) -> str | None:
+    async def send_to_agent(self, agent_id: str, content: str, timeout: float = 60,
+                           metadata: dict = None) -> str | None:
         """通过 MESH 给指定智能体发消息，等待回复"""
         if not self._ws or not self._running:
             return None
@@ -59,12 +60,15 @@ class MeshClient:
         future = asyncio.get_event_loop().create_future()
         self._pending_replies[call_id] = {"future": future, "expected_from": agent_id}
 
-        await self._send({
+        payload = {
             "type": "send",
             "to": agent_id,
             "data_type": "text",
             "content": content,
-        })
+        }
+        if metadata:
+            payload["metadata"] = metadata
+        await self._send(payload)
 
         try:
             result = await asyncio.wait_for(future, timeout=timeout)
