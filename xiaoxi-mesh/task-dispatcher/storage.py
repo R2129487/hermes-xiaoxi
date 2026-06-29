@@ -320,18 +320,36 @@ class Storage:
 
     async def get_sessions(self, user_id: str = None) -> list[dict]:
         if user_id:
+            # 先查普通会话（user_id 匹配）
             cursor = await self._conn.execute(
                 """SELECT session_id, MAX(id) as last_id, MAX(timestamp) as last_time
                    FROM chat_messages WHERE user_id = ?
                    GROUP BY session_id ORDER BY last_id DESC""",
                 (user_id,)
             )
+            rows = list(await cursor.fetchall())
+            seen = {r["session_id"] for r in rows}
+            # 再查用户间 peer 会话（session_id 包含当前用户ID）
+            peer_pattern = f"%{user_id}%"
+            cursor = await self._conn.execute(
+                """SELECT session_id, MAX(id) as last_id, MAX(timestamp) as last_time
+                   FROM chat_messages
+                   WHERE session_id LIKE ? AND session_id NOT LIKE 'session_agent_%'
+                   GROUP BY session_id ORDER BY last_id DESC""",
+                (peer_pattern,)
+            )
+            for r in await cursor.fetchall():
+                if r["session_id"] not in seen:
+                    rows.append(r)
+                    seen.add(r["session_id"])
+            # 按 last_id 排序
+            rows.sort(key=lambda r: r["last_id"] or 0, reverse=True)
         else:
             cursor = await self._conn.execute(
                 """SELECT session_id, MAX(id) as last_id, MAX(timestamp) as last_time
                    FROM chat_messages GROUP BY session_id ORDER BY last_id DESC"""
             )
-        rows = await cursor.fetchall()
+            rows = await cursor.fetchall()
         return [
             {
                 "session_id": r["session_id"],
@@ -341,7 +359,9 @@ class Storage:
         ]
 
     async def get_session_title(self, session_id: str, user_id: str = None) -> str:
-        if user_id:
+        # 对于 peer 会话，不过滤 user_id（双方都能看到标题）
+        is_peer = session_id.startswith("session_user_")
+        if user_id and not is_peer:
             cursor = await self._conn.execute(
                 """SELECT content FROM chat_messages
                    WHERE session_id = ? AND role = 'user' AND user_id = ?
@@ -363,7 +383,9 @@ class Storage:
 
     async def delete_session(self, session_id: str, user_id: str = None):
         """删除会话"""
-        if user_id:
+        # 对于 peer 会话，删除所有消息（不限 user_id）
+        is_peer = session_id.startswith("session_user_")
+        if user_id and not is_peer:
             await self._conn.execute(
                 "DELETE FROM chat_messages WHERE session_id = ? AND user_id = ?",
                 (session_id, user_id))

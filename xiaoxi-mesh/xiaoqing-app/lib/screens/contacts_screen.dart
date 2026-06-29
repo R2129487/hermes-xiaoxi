@@ -220,9 +220,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
   Widget _buildAgentTile(Agent a) {
     final uid = api.currentUser?.id ?? '';
     final sessionId = a.type == 'user'
-        ? (uid.compareTo(a.agentId) < 0
-            ? 'session_user_${uid}_${a.agentId}'
-            : 'session_user_${a.agentId}_${uid}')
+        ? (() {
+            // agentId 格式为 "user_xxx"，需要去掉前缀与 backend 一致
+            final otherId = a.agentId.startsWith('user_') ? a.agentId.substring(5) : a.agentId;
+            return uid.compareTo(otherId) < 0
+                ? 'session_user_${uid}_${otherId}'
+                : 'session_user_${otherId}_${uid}';
+          })()
         : 'session_agent_${a.agentId}';
     final name = a.showName;
     final color = Color(a.avatarColor);

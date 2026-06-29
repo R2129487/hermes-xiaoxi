@@ -50,19 +50,19 @@ class _ConversationListState extends State<ConversationList> {
 
   /// 缓存优先加载：先从本地读秒开，再后台刷网络
   Future<void> _loadData() async {
-    final agents = await api.getAgents();
-    agents.sort((a, b) {
-      final w = a.sortWeight.compareTo(b.sortWeight);
-      if (w != 0) return w;
-      return a.showName.compareTo(b.showName);
-    });
+  final agents = await api.getAgents();
+  agents.sort((a, b) {
+    final w = a.sortWeight.compareTo(b.sortWeight);
+    if (w != 0) return w;
+    return a.showName.compareTo(b.showName);
+  });
 
-    // 1. 先从缓存读最后一条消息（毫秒级）
-    final cacheHistory = <String, List<Message>>{};
-    for (final a in agents) {
-      final sessionId = 'session_agent_${a.agentId}';
-      final cached = await MessageCache.getMessages(sessionId);
-      cacheHistory[a.agentId] = cached;
+  // 1. 先从缓存读最后一条消息（毫秒级）
+  final cacheHistory = <String, List<Message>>{};
+  for (final a in agents) {
+    final sessionId = _agentSessionId(a);
+    final cached = await MessageCache.getMessages(sessionId);
+    cacheHistory[a.agentId] = cached;
     }
     if (mounted) {
       setState(() {
@@ -77,9 +77,9 @@ class _ConversationListState extends State<ConversationList> {
   }
 
   Future<void> _refreshFromNetwork(List<Agent> agents) async {
-    for (final a in agents) {
-      final sessionId = 'session_agent_${a.agentId}';
-      try {
+  for (final a in agents) {
+    final sessionId = _agentSessionId(a);
+    try {
         final msgs = await api.getHistory(sessionId);
         if (msgs.isNotEmpty) {
           await MessageCache.putMessages(sessionId, msgs);
@@ -111,6 +111,20 @@ class _ConversationListState extends State<ConversationList> {
   bool _isSelf(Agent a) {
     final uid = api.currentUser?.id ?? '';
     return uid.isNotEmpty && a.agentId == 'user_$uid';
+  }
+
+  /// 根据 agent 类型生成正确的 session_id
+  /// 用户间聊天用 peer session 格式，智能体用 agent session 格式
+  String _agentSessionId(Agent a) {
+    if (a.type == 'user') {
+      final uid = api.currentUser?.id ?? '';
+      // agentId 格式为 "user_xxx"，需要去掉前缀与 backend 一致
+      final otherId = a.agentId.startsWith('user_') ? a.agentId.substring(5) : a.agentId;
+      return uid.compareTo(otherId) < 0
+          ? 'session_user_${uid}_${otherId}'
+          : 'session_user_${otherId}_${uid}';
+    }
+    return 'session_agent_${a.agentId}';
   }
 
   List<Agent> get _dispatchers => _agents.where((a) => a.type == 'dispatcher').toList();
@@ -149,7 +163,7 @@ class _ConversationListState extends State<ConversationList> {
   }
 
   Widget _buildChatTile(Agent a) {
-    final sessionId = 'session_agent_${a.agentId}';
+  final sessionId = _agentSessionId(a);
     final msgs = _historyCache[a.agentId] ?? [];
     final lastMsg = msgs.isNotEmpty ? msgs.last.content : '';
     final lastTime = msgs.isNotEmpty ? msgs.last.timestamp.toIso8601String() : null;
