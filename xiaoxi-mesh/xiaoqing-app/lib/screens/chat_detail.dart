@@ -117,6 +117,14 @@ class _ChatDetailState extends State<ChatDetail> {
       _msgStatus[msgId] = '📥 服务器已收到';
       setState(() {});
 
+      // 弹出处理中通知
+      NotificationService().showProcessingNotification(
+        agentId: widget.agentId,
+        agentName: widget.agentName,
+        detail: '处理中...',
+        payload: '${widget.agentId}|${widget.agentName}|${widget.agentColor.value}|${widget.sessionId}',
+      );
+
       // 轮询状态直到完成
       String? lastStatus;
       for (int i = 0; i < 300; i++) {
@@ -130,11 +138,22 @@ class _ChatDetailState extends State<ChatDetail> {
             lastStatus = s;
             _msgStatus[msgId] = _statusLabel(s, d);
             // 同步更新顶部状态
-            if (s == 'agent_received') _headerStatus = '📩 小青已收到';
-            if (s == 'agent_replying') _headerStatus = '💬 正在回复...';
+            if (s == 'agent_received') _headerStatus = '📩 $d';
+            if (s == 'agent_processing') _headerStatus = '⚙️ $d';
+            if (s == 'agent_replying') _headerStatus = '💬 $d';
+            // 更新处理中通知
+            final progress = s == 'agent_received' ? 30 : s == 'agent_processing' ? 60 : 50;
+            NotificationService().updateProcessingNotification(
+              agentId: widget.agentId,
+              agentName: widget.agentName,
+              detail: _statusLabel(s, d),
+              progress: progress,
+            );
             if (mounted) setState(() {});
           }
           if (s == 'completed') {
+            // 取消处理中通知
+            NotificationService().cancelProcessingNotification(widget.agentId);
             final reply = st['reply'] as String? ?? '';
             if (reply.isNotEmpty && mounted) {
               setState(() {
@@ -161,6 +180,8 @@ class _ChatDetailState extends State<ChatDetail> {
             return;
           }
           if (s == 'failed') {
+            // 取消处理中通知
+            NotificationService().cancelProcessingNotification(widget.agentId);
             if (mounted) {
               setState(() {
                 _sending = false;
@@ -171,6 +192,8 @@ class _ChatDetailState extends State<ChatDetail> {
           }
         } catch (_) {}
       }
+      // 超时也取消通知
+      NotificationService().cancelProcessingNotification(widget.agentId);
       _msgStatus[msgId] = '⏱️ 处理超时';
       if (mounted) setState(() { _sending = false; _headerStatus = '🟢 在线'; });
     } else if (mounted) {
