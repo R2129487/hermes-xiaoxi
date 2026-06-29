@@ -230,6 +230,21 @@ class DispatcherApi {
     }
   }
 
+  /// 解析时间戳：兼容旧UTC格式和新北京时间格式
+  DateTime _parseTimestamp(String ts) {
+    if (ts.isEmpty) return DateTime.now();
+    // 旧格式 "2026-06-29 03:43:56" 是UTC，需+8小时
+    // 新格式 "2026-06-29T11:47:27" 已是北京时间
+    final fixed = ts.replaceAll(' ', 'T');
+    final dt = DateTime.tryParse(fixed);
+    if (dt == null) return DateTime.now();
+    // 沀时区信息 + 小时<12 → 大概率是旧UTC数据，加8小时
+    if (!ts.contains('+') && !ts.endsWith('Z') && dt.hour < 12) {
+      return dt.add(const Duration(hours: 8));
+    }
+    return dt;
+  }
+
   Future<List<Message>> getHistory(String sessionId) async {
     try {
       final r = await _get('/api/chat/history/${Uri.encodeComponent(sessionId)}');
@@ -244,7 +259,7 @@ class DispatcherApi {
           content: m['content'] ?? '',
           fromAgent: isUser ? 'user' : 'assistant',
           toAgent: isUser ? 'assistant' : 'user',
-          timestamp: DateTime.tryParse(m['timestamp'] ?? '') ?? DateTime.now(),
+          timestamp: _parseTimestamp(m['timestamp'] ?? ''),
           isMe: isUser,
         );
       }).toList();

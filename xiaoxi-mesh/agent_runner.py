@@ -210,7 +210,7 @@ class AgentRunner:
     async def _handle_message(self, msg: dict):
         """处理收到的消息"""
         msg_type = msg.get("type", "unknown")
-        from_id = msg.get("from", "unknown")
+        from_id = msg.get("from_id", "unknown")
         content = msg.get("content", "")
 
         if msg_type == "ping":
@@ -278,7 +278,7 @@ class AgentRunner:
         """处理任务委派 — 先走决策流程，再按结果执行或委派"""
         task_id = msg.get("metadata", {}).get("task_id", "unknown")
         content = msg.get("content", "")
-        from_id = msg.get("from", "")
+        from_id = msg.get("from_id", "")
         log.info(f"📋 收到任务 [{task_id}]: {content}")
 
         # 1. 调用统一决策
@@ -324,7 +324,7 @@ class AgentRunner:
         """处理跨智能体调用 — 先决策，再执行或转发"""
         action = msg.get("content", "")
         params = msg.get("metadata", {}).get("params", {})
-        from_id = msg.get("from", "")
+        from_id = msg.get("from_id", "")
         call_id = msg.get("call_id", "")
         
         log.info(f"📞 收到调用请求: {action}({json.dumps(params, ensure_ascii=False)[:100]})")
@@ -554,7 +554,7 @@ class AgentRunner:
 
     async def _handle_text(self, msg: dict):
         """处理普通文本消息 — 也走决策流程，判断该自己干还是委派"""
-        from_id = msg.get("from", "")
+        from_id = msg.get("from_id", "")
         content = msg.get("content", "")
         log.info(f"💬 [{from_id}]: {content}")
 
