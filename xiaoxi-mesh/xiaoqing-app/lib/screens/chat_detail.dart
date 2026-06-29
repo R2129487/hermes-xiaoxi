@@ -17,6 +17,7 @@ class ChatDetail extends StatefulWidget {
   final String agentAvatar;
   final String sessionId;
   final String agentStatus;  // online/offline/thinking/working/idle
+  final String agentType;    // dispatcher/agent/user
 
   const ChatDetail({
     super.key,
@@ -26,6 +27,7 @@ class ChatDetail extends StatefulWidget {
     required this.agentAvatar,
     required this.sessionId,
     this.agentStatus = 'offline',
+    this.agentType = 'agent',
   });
 
   @override
@@ -583,7 +585,22 @@ class _ChatDetailState extends State<ChatDetail> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.agentName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                Row(
+                  children: [
+                    Text(widget.agentName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                    if (widget.agentType != 'user') ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6C5CE7),
+                          borderRadius: BorderRadius.circular(4)),
+                        child: const Text('AI',
+                          style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ],
+                ),
                 Text(
                   _agentStatusLabel(_headerStatus),
                   style: TextStyle(fontSize: 11, color: Colors.grey[500]),

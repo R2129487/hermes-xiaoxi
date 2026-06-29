@@ -324,14 +324,19 @@ async def _process_message(task_id: str, message: str, session_id: str, agent_id
     try:
         await storage.update_message_task(task_id, "processing", "处理中")
         # ── 用户间私聊 ──
-        target_user = await storage.get_user(user_id=agent_id)
-        if target_user is not None:
+        # agent_id 格式为 "user_{用户ID}"，需要去掉前缀查 users 表
+        target_user = None
+        real_user_id = None
+        if agent_id.startswith("user_"):
+            real_user_id = agent_id[5:]  # 去掉 "user_" 前缀
+            target_user = await storage.get_user(user_id=real_user_id)
+        if target_user is not None and real_user_id is not None:
             await storage.update_message_task(task_id, "forwarding", f"转发至 {target_user.display_name or target_user.username}")
             # 存到发送者的会话
             await _save_message(session_id, "user", message, user_id=user.id)
             # 存到接收者的会话（双向同步）
-            # 用排序保证双方用同一 session ID
-            ids = sorted([user.id, agent_id])
+            # 用排序保证双方用同一 session ID（用去掉 user_ 前缀的真实用户ID）
+            ids = sorted([user.id, real_user_id])
             peer_session = f"session_user_{ids[0]}_{ids[1]}"
             await _save_message(peer_session, "user", message, user_id=user.id)
             # 标记完成（用户间消息不需要等待回复）
@@ -482,7 +487,11 @@ async def update_message_status(request: dict):
 async def get_chat_history(session_id: str = "default", user=Depends(get_current_user)):
     """获取聊天历史（过滤掉 system 消息，简化工具有用信息）"""
     try:
-        rows = await storage.get_chat_history(session_id, user_id=user.id)
+        # For peer-to-peer sessions (session_user_xxx_yyy), don't filter by user_id
+        # so both users can see all messages in the shared session
+        is_peer_session = session_id.startswith("session_user_")
+        uid = None if is_peer_session else user.id
+        rows = await storage.get_chat_history(session_id, user_id=uid)
         clean = []
         for r in rows:
             if r["role"] == "system":

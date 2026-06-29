@@ -243,6 +243,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
             agentAvatar: avatarChar,
             sessionId: sessionId,
             agentStatus: a.status,
+            agentType: a.type,
           ),
         ));
         if (changed == true) _loadAgents();
@@ -276,7 +277,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 第一行：名称 + 状态
+                  // 第一行：名称 + AI标签 + 状态
                   Row(
                     children: [
                       Flexible(
@@ -284,6 +285,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
                           style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16, color: Color(0xFF191919)),
                           overflow: TextOverflow.ellipsis),
                       ),
+                      if (a.type != 'user') ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6C5CE7),
+                            borderRadius: BorderRadius.circular(4)),
+                          child: const Text('AI',
+                            style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
+                        ),
+                      ],
                       if (a.nickname.isNotEmpty) ...[
                         const SizedBox(width: 6),
                         Text('@${a.displayName}',

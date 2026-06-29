@@ -190,6 +190,19 @@ async def login(body: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/logout")
+async def logout(user: User = Depends(get_current_user)):
+    """用户登出 — 将对应 agent 状态设为 offline"""
+    try:
+        agent_id = f"user_{user.id}"
+        existing = await storage.get_agent(agent_id)
+        if existing:
+            await storage.update_agent(agent_id, {"status": "offline", "last_seen": now_str()})
+        return {"code": 0, "message": "已登出"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/me")
 async def get_me(user: User = Depends(get_current_user)):
     """获取当前登录用户信息"""
