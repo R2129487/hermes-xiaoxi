@@ -1,11 +1,11 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/dispatcher_api.dart';
 import '../services/voice_service.dart';
 import '../services/notification_service.dart';
+import '../services/message_cache.dart';
 import '../models/message.dart';
 import '../main.dart' show api;
 
@@ -67,10 +67,28 @@ class _ChatDetailState extends State<ChatDetail> {
   }
 
   Future<void> _loadHistory() async {
-    final msgs = await api.getHistory(widget.sessionId);
-    if (mounted) {
-      setState(() { _messages = msgs; _loading = false; });
+    // 1. 先从缓存读（毫秒级秒开）
+    final cached = await MessageCache.getMessages(widget.sessionId);
+    if (mounted && cached.isNotEmpty) {
+      setState(() { _messages = cached; _loading = false; });
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    }
+
+    // 2. 后台刷网络数据
+    try {
+      final msgs = await api.getHistory(widget.sessionId);
+      if (msgs.isNotEmpty) {
+        await MessageCache.putMessages(widget.sessionId, msgs);
+      }
+      if (mounted) {
+        setState(() { _messages = msgs; _loading = false; });
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+      }
+    } catch (_) {
+      // 网络失败就用缓存数据，不报错
+      if (mounted && _messages.isEmpty) {
+        setState(() { _loading = false; });
+      }
     }
   }
 
@@ -107,6 +125,7 @@ class _ChatDetailState extends State<ChatDetail> {
       ));
     });
     _scrollToBottom();
+    MessageCache.putMessages(widget.sessionId, _messages);
 
     // 异步发送，立即返回 task_id
     final result = await api.sendMessage(msg, widget.sessionId, widget.agentId);
@@ -169,6 +188,7 @@ class _ChatDetailState extends State<ChatDetail> {
                 ));
               });
               _scrollToBottom();
+              MessageCache.putMessages(widget.sessionId, _messages);
               // 弹通知
               NotificationService().showMessageNotification(
                 agentName: widget.agentName,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/dispatcher_api.dart';
+import '../services/message_cache.dart';
 import '../models/agent.dart';
 import '../models/message.dart';
 import 'chat_detail.dart';
@@ -47,27 +48,48 @@ class _ConversationListState extends State<ConversationList> {
     });
   }
 
+  /// 缓存优先加载：先从本地读秒开，再后台刷网络
   Future<void> _loadData() async {
     final agents = await api.getAgents();
-    // 排序：调度员置顶 → 置顶 → 在线 → 离线
     agents.sort((a, b) {
       final w = a.sortWeight.compareTo(b.sortWeight);
       if (w != 0) return w;
       return a.showName.compareTo(b.showName);
     });
 
-    final history = <String, List<Message>>{};
+    // 1. 先从缓存读最后一条消息（毫秒级）
+    final cacheHistory = <String, List<Message>>{};
     for (final a in agents) {
       final sessionId = 'session_agent_${a.agentId}';
-      final msgs = await api.getHistory(sessionId);
-      history[a.agentId] = msgs;
+      final cached = await MessageCache.getMessages(sessionId);
+      cacheHistory[a.agentId] = cached;
     }
     if (mounted) {
       setState(() {
         _agents = agents;
-        _historyCache = history;
+        _historyCache = cacheHistory;
         _loading = false;
       });
+    }
+
+    // 2. 后台刷新网络数据（不阻塞UI）
+    _refreshFromNetwork(agents);
+  }
+
+  Future<void> _refreshFromNetwork(List<Agent> agents) async {
+    for (final a in agents) {
+      final sessionId = 'session_agent_${a.agentId}';
+      try {
+        final msgs = await api.getHistory(sessionId);
+        if (msgs.isNotEmpty) {
+          await MessageCache.putMessages(sessionId, msgs);
+        }
+        if (mounted) {
+          setState(() {
+            _historyCache[a.agentId] = msgs;
+          });
+        }
+      } catch (_) {}
     }
   }
 
